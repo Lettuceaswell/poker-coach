@@ -121,12 +121,12 @@ function winnersSet() {
 }
 
 // ---------- position ripple ----------
-// Starts at the button, runs once clockwise around every seat (yours included), lands
-// back on the button, which then keeps its normal pulse. Fires at each new hand (your
-// position just changed) and every 6 s while a hand is in play; never on results.
-let sweepStart = -1e9, sweepOrder = new Map(), sweepN = 0;
-const SWEEP_STEP = 110, SWEEP_EVERY = 6000;
-function startSweep() {
+// A white light starts at the button and runs clockwise around every seat (yours
+// included). New hand: 3 laps; then every ~6 s after it finishes: 2 laps. Each run
+// lands back on the button, which then keeps its normal pulse. Never on results.
+let sweepStart = -1e9, sweepOrder = new Map(), sweepN = 0, sweepLaps = 3;
+const SWEEP_STEP = 140, SWEEP_GAP = 6000;
+function startSweep(laps = 3) {
   const ps = game.players;
   const seated = (p) => !p.out;
   sweepOrder = new Map();
@@ -137,21 +137,24 @@ function startSweep() {
     i = game.next(i, seated);
   }
   sweepN = sweepOrder.size;
+  sweepLaps = laps;
   sweepStart = performance.now();
   applySweep();
 }
-const sweepTotal = () => (sweepN + 1) * SWEEP_STEP + 900;
+const lapMs = () => sweepN * SWEEP_STEP;
+const sweepTotal = () => sweepLaps * lapMs() + 900;
 function sweepActive(i) { return sweepOrder.has(i) && performance.now() - sweepStart < sweepTotal(); }
-// classes + inline delays for one position circle; negative delays keep a re-render mid-ripple in sync
+// inline timing for one circle; negative delays keep a re-render mid-ripple in sync
 function sweepAttrs(i) {
   if (!sweepActive(i)) return { cls: '', style: '' };
   const t = performance.now() - sweepStart;
   const d0 = Math.round(sweepOrder.get(i) * SWEEP_STEP - t);
+  const base = `--lap:${lapMs()}ms;--laps:${sweepLaps};`;
   if (i === game.button) {
-    const d1 = Math.round(sweepN * SWEEP_STEP - t);
-    return { cls: ' sweep-btn', style: `--d0:${d0}ms;--d1:${d1}ms;--d2:${d1 + 700}ms` };
+    const d1 = Math.round(sweepLaps * lapMs() - t);
+    return { cls: ' sweep-btn', style: `${base}--d0:${d0}ms;--d1:${d1}ms;--d2:${d1 + 750}ms` };
   }
-  return { cls: ' sweep', style: `animation-delay:${d0}ms` };
+  return { cls: ' sweep', style: `${base}animation-delay:${d0}ms` };
 }
 function sweepStyle(i) { const a = sweepAttrs(i); return a.cls ? `${a.cls}" style="${a.style}` : ''; }
 function sweepClass(i) { return sweepAttrs(i).cls; }
@@ -170,7 +173,10 @@ function applySweep() {
     if (a.cls) el.classList.add(a.cls.trim());
   }
 }
-setInterval(() => { if (!paused && game && !game.handOver && performance.now() - sweepStart > SWEEP_EVERY - 50) startSweep(); }, 1000);
+setInterval(() => {
+  if (paused || !game || game.handOver) return;
+  if (performance.now() - sweepStart > sweepTotal() + SWEEP_GAP) startSweep(2);
+}, 250);
 
 // ---------- the winning five cards ----------
 let winCards = new Set();
@@ -749,7 +755,7 @@ function readSpot() {
   return withRoll({ ...base, mix, quality: m.quality, why: m.why, rare });
 }
 
-const COLOR = { r: '#ff7a5c', c: '#3ee6a0', f: '#6b6b72' };
+const COLOR = { r: '#ff7a5c', c: '#6aa8ff', f: '#8a8a92' }; // green is reserved for the coach's pick
 
 // The die: a fresh 1-100 roll per decision picks one action from the mix, so mixed
 // strategies get played at the right frequencies. Ranges follow the displayed order.

@@ -1,4 +1,6 @@
 :root {
+  --win: #f5c84a;
+  --tick: rgba(255, 255, 255, .85);
   --bg: #000;
   --line: #2f2f31;
   --text: #f2f2f2;
@@ -97,7 +99,7 @@ body.four .card.s-3 { color: var(--green); }
 .quick button.on { background: #f2f2f2; color: #000; border-color: #f2f2f2; font-weight: 600; }
 .quick button:last-child { margin-right: 24px; }
 .btn.pre { font-size: 16px; color: var(--dim); }
-.btn.pre.on { border-color: var(--go); color: var(--go); }
+.btn.pre.on { border-color: #f2f2f2; color: #fff; background: rgba(255, 255, 255, .06); }
 
 /* actions */
 .actions { flex: none; display: flex; gap: 12px; height: 62px; margin-bottom: 24px; }
@@ -124,7 +126,7 @@ body.four .card.s-3 { color: var(--green); }
 .hero-cards .hint { position: absolute; left: 0; right: 0; top: -20px; text-align: center; font-size: 12px; color: var(--dim); opacity: 0; transition: opacity .3s; pointer-events: none; }
 .hero-cards .hint.on { opacity: 1; }
 .hero-box { flex: 1; border: 2px solid var(--line); border-radius: 28px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 14px 6px 12px; min-width: 0; }
-.hero-box.winner { border-color: var(--go); }
+.hero-box.winner { border-color: var(--win); }
 .hero-hand { font-size: 15px; color: var(--dim); text-align: center; line-height: 1.2; min-height: 18px; }
 .hero-ava-wrap { position: relative; }
 .hero-ava { font-size: 50px; line-height: 60px; height: 60px; }
@@ -159,10 +161,10 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 .pos { width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center;
   font-size: 16px; font-weight: 700; letter-spacing: .04em; color: #e8e8ea; transition: box-shadow .3s, border-color .3s; }
 .pos.btn-pos { background: #f2f2f2; color: #000; border-color: #f2f2f2; }
-.seat.winner .pos { box-shadow: 0 0 0 3px var(--go), 0 0 24px rgba(62, 230, 160, .45); }
-.seat.acting .pos { border-color: var(--go); }
+.seat.winner .pos { box-shadow: 0 0 0 3px var(--win), 0 0 24px rgba(245, 200, 74, .45); }
+.seat.acting .pos { border-color: rgba(255, 255, 255, .5); }
 .seat .timer { position: absolute; inset: -6px; width: auto; height: auto; margin: 0; border-radius: 50%; visibility: hidden;
-  background: conic-gradient(var(--go) calc(var(--p, 0) * 1turn), rgba(62, 230, 160, .12) 0);
+  background: conic-gradient(var(--tick) calc(var(--p, 0) * 1turn), rgba(255, 255, 255, .08) 0);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
           mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); }
 .hero-pos { width: 56px; height: 56px; font-size: 15px; }
@@ -225,22 +227,30 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0), 0 0 8px rgba(255, 255, 255, .18); }
   50% { box-shadow: 0 0 0 5px rgba(255, 255, 255, .10), 0 0 22px rgba(255, 255, 255, .42); }
 }
-.pos.sweep { animation: ripple .55s ease-out both; }
+/* one lap = --lap; the light is bright for the first slice of each lap and trails off */
+.pos.sweep { animation: ripple var(--lap) linear var(--laps) both; }
 @keyframes ripple {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
-  35% { border-color: rgba(255, 255, 255, .85); box-shadow: 0 0 0 2px rgba(255, 255, 255, .14), 0 0 14px rgba(255, 255, 255, .38); }
+  0% { border-color: var(--line); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  6% { border-color: rgba(255, 255, 255, .95); color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, .2), 0 0 20px rgba(255, 255, 255, .55); }
+  40% { border-color: var(--line); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  100% { border-color: var(--line); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
 }
-/* the button: ripple out, land when it comes back around, then its normal pulse */
-.pos.btn-pos.sweep-btn { animation: ripple .55s ease-out var(--d0) both, land .8s ease-out var(--d1) both, btnPulse 2.8s ease-in-out var(--d2) infinite; }
+@keyframes rippleBtn {
+  0% { box-shadow: 0 0 8px rgba(255, 255, 255, .18); }
+  6% { box-shadow: 0 0 0 4px rgba(255, 255, 255, .22), 0 0 24px rgba(255, 255, 255, .6); }
+  40%, 100% { box-shadow: 0 0 8px rgba(255, 255, 255, .18); }
+}
+/* the button: lights each lap, lands when the last lap comes back around, then pulses */
+.pos.btn-pos.sweep-btn { animation: rippleBtn var(--lap) linear var(--d0) var(--laps) both, land .8s ease-out var(--d1) both, btnPulse 2.8s ease-in-out var(--d2) infinite; }
 @keyframes land {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); transform: scale(1); }
-  40% { box-shadow: 0 0 0 6px rgba(255, 255, 255, .14), 0 0 26px rgba(255, 255, 255, .5); transform: scale(1.06); }
+  40% { box-shadow: 0 0 0 7px rgba(255, 255, 255, .16), 0 0 30px rgba(255, 255, 255, .6); transform: scale(1.08); }
 }
 
 /* your turn */
 .hero-box { transition: border-color .25s, box-shadow .25s; }
-.hero-box.turn { border-color: rgba(62, 230, 160, .7); animation: turnGlow 2s ease-in-out infinite; }
-@keyframes turnGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(62, 230, 160, 0); } 50% { box-shadow: 0 0 22px rgba(62, 230, 160, .22); } }
+.hero-box.turn { border-color: rgba(255, 255, 255, .55); animation: turnGlow 2s ease-in-out infinite; }
+@keyframes turnGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(62, 230, 160, 0); } 50% { box-shadow: 0 0 22px rgba(255, 255, 255, .14); } }
 
 /* chips and pot in flight */
 .fly-chip { position: fixed; z-index: 40; pointer-events: none; min-width: 34px; height: 34px; padding: 0 10px; border-radius: 999px;
@@ -250,9 +260,9 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 
 /* showdown: the winning five light up, the rest of the board dims */
 .board .card { transition: filter .3s, box-shadow .3s, transform .3s; }
-.card.hilite { box-shadow: 0 0 0 3px var(--go), 0 0 18px rgba(62, 230, 160, .45); transform: translateY(-3px); }
+.card.hilite { box-shadow: 0 0 0 3px var(--win), 0 0 18px rgba(245, 200, 74, .45); transform: translateY(-3px); }
 .card.lowlite { filter: brightness(.45) saturate(.6); }
-.mini .card.hilite { transform: none; box-shadow: 0 0 0 2px var(--go); }
+.mini .card.hilite { transform: none; box-shadow: 0 0 0 2px var(--win); }
 
 /* stable coach panel so the layout never jumps */
 .status { min-height: 62px; }
@@ -269,7 +279,7 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 
 /* last action label fades in */
 .seat .nm { transition: color .2s; }
-.bet-chip.won { position: static; color: #000; background: var(--go); animation: wonPop .5s cubic-bezier(.2, 1.6, .4, 1) both; font-weight: 700; }
+.bet-chip.won { position: static; color: #000; background: var(--win); animation: wonPop .5s cubic-bezier(.2, 1.6, .4, 1) both; font-weight: 700; }
 @keyframes wonPop { from { transform: translateY(8px) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
@@ -281,7 +291,7 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 .ava-wrap .mini .card { width: 32px; height: 46px; box-shadow: 0 2px 10px rgba(0, 0, 0, .6); }
 .ava-wrap .mini .card:first-child { transform: rotate(-6deg); }
 .ava-wrap .mini .card:last-child { transform: rotate(6deg); }
-.ava-wrap .mini .card.hilite { box-shadow: 0 0 0 2px var(--go), 0 2px 10px rgba(0, 0, 0, .6); }
+.ava-wrap .mini .card.hilite { box-shadow: 0 0 0 2px var(--win), 0 2px 10px rgba(0, 0, 0, .6); }
 
 /* fixed-height coach panel: buttons never move while the solver updates */
 .pot-row { height: 70px; min-height: 0; overflow: hidden; }

@@ -1,5 +1,5 @@
 // Network-first so pushes show up right away; cache keeps it playable offline.
-const CACHE = 'poker-coach-v11';
+const CACHE = 'poker-coach-v12';
 const FILES = ['./', 'index.html', 'css/style.css', 'js/app.js', 'js/engine.js', 'js/bots.js', 'js/cards.js', 'js/coach.js', 'js/preflop-tree.js', 'js/ranges.js', 'js/postflop-coach.js',
   'js/postflop/solver.js', 'js/postflop/eval7.js', 'js/postflop/worker.js',
   'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
