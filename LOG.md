@@ -16,9 +16,23 @@ Feature decisions live in `SPEC.md`; the plan lives in `TODO.md`.
 | `node tools/shoot.js` | Phone-sized Chromium playthrough, screenshots in `shots/` |
 | `node tools/coach-shots.js` | Drives every coaching screen |
 | `node tools/orbit-nav.js` | Orbit review: pivotal spot and verdict, Back navigation, reopening from Hands, blind-hand results |
+| `node tools/score/app-score.js [--json out.json]` | The whole-experience gauge (accuracy 30 / speed 15 / learning 40 / rules 15, vetoes cap at 40). ~2.5 min, runs every check above. Frozen: see `tools/score/SCORE.md`, `FROZEN.sha256` |
 | `node tools/solve.js <players> <minutes> [seed]` | Preflop solve; follow with `node tools/pack.js` |
 
 The browser tools use playwright-core with `/usr/bin/chromium`. Long solves run under `systemd-run --user`; sessions kill background shells.
+
+## 2026-11-27 Zenith run (autonomous, branch zenith-app)
+
+**Gauge.** `tools/score/app-score.js` scores the app by running it (never by reading source). Frozen at 41dabdc; baseline 61.7/100, noise band (MDE) 1.0. Criteria, flake notes and baseline table are in `tools/score/SCORE.md`. `shoot.js` can flake on a waitTurn timeout and veto a run: rerun before trusting a failure. A worktree needs `data/*.bin` symlinked or preflop scores 0.
+
+**Kept (3 changes)**
+- `js/progress.js`: Progress screen and menu mini-trend (per-session accuracy, BB lost per 100 decisions, calibration vs 90%, drill accuracy).
+- `js/postflop-drills.js` + `data/postflop-drills.json`: 108 pre-solved river/turn spots mixed into drills, priced in BB. Ranges are Chen-score cutoffs (approximate, labeled). No flop spots yet.
+- `js/history.js` / `js/drills.js`: Leitner-lite spaced repetition, interleaving, adaptive difficulty, "cost vs the coach's pick" line (frequency-based estimate, not EV).
+
+**Rejected:** flat 0.90 OOP limped-pot haircut re-solve (SB limp 56→45.5%, BTN and BB drifted worse). No data changed.
+
+**Known:** base app uses green on grade chips and +BB in the panel (exempted in the gauge, rule deviation). Deliberate-practice sub-score dropped after the scheduler change (leak-spot share fell).
 
 ## 2026-11-27 to 11-28: first build, in one long session
 

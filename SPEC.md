@@ -26,3 +26,22 @@ Built and live 2026-11-28. Postflop drills are still to come.
 Rules from this round:
 - Explanations come from solver data, not a live AI: no API keys, and everything works offline.
 - Green stays reserved for the coach's pick.
+
+## Zenith run 2026-11-27
+
+Verdicts from the autonomous run, judged by the frozen gauge `tools/score/app-score.js`.
+
+Kept:
+- Postflop drills from pre-solved heads-up river/turn spots: answer first, reveal on tap (retrieval practice, Roediger & Karpicke 2006). Flop spots pending an overnight solve.
+- Every postflop option priced in BB vs the solver's best; preflop answers show "cost vs the coach's pick ≈ X BB" (specific immediate feedback, Hattie & Timperley 2007). Preflop cost is a frequency-based estimate, not an EV solve: speculative precision.
+- Interleaving: drills never repeat both spot type and position back to back; postflop items mix into the preflop stream on a different street when possible (Rohrer & Taylor 2007; Kornell & Bjork 2008).
+- Spaced repetition, Leitner-lite: misses return in 2-3 items, then ~10 (~22 for postflop) (Cepeda et al. 2006, 2008). Within-session only; cross-day spacing is speculative and not built.
+- Adaptive difficulty from rolling accuracy (>=80% edge-of-range hands, <=50% clear hands) (Bjork 1994, desirable difficulties). Speculative: measured effect is noisy.
+- Progress screen and menu trend: per-session decision accuracy, BB lost per 100 decisions, calibration hit rate vs the 90% target, drill accuracy (visible progress; calibration per Lichtenstein & Fischhoff 1977, Hubbard).
+- "Personal best" only on earned improvement (>=1 pt over >=8 decisions), never for activity (reward prediction error, Schultz 1997; transfer to learning is speculative).
+- Postflop drill ranges are Chen-score cutoffs, not the preflop solution: speculative until rebuilt from the solve.
+
+Rejected:
+- Flat OOP limped-pot realization haircut (SB limp 56->45%, still far from ~0%; BTN worse).
+
+Open for Levi: the base app uses green on grade chips and +BB in the panel; the rule says green is only the coach's pick.

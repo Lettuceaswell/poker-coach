@@ -23,6 +23,8 @@ Ranked by leverage. The goal: answers you can trust like GTO Wizard's, computed 
 
 ## Then
 
+0. **Gauge follow-ups.** Dopamine and desirable-difficulty sub-scores are 0; deliberate practice regressed (leak-spot share in drills); cross-day spaced repetition not built; BB cost in preflop drills is a frequency estimate, not EV.
+
 2. **Measure on a real iPhone.** (Needs Levi: play heads-up flop/turn spots and send the meter readings, or open a hidden `?bench` page I'd add.) This decides whether 4 is urgent.
 3. **Limp-aware tree with locked normie ranges.** Add limp branches. Lock the limpers' ranges to the bots' actual limp strategies (node locking) so iso-raise ranges are solved, not approximated. Right now about 47% of 6-max spots are "≈ limper". Gauge: the `mapcheck` exact share rises from ~47–51% toward 90%+.
 4. **Phone speed.**
@@ -33,7 +35,7 @@ Ranked by leverage. The goal: answers you can trust like GTO Wizard's, computed 
 6. **Solver-based range narrowing for multiway pots.** Replace the heuristic `narrow()` (bet keeps strong plus some air) with ranges from solved or blueprint strategies.
 7. **Three-way postflop.** Move multiway spots from "estimate" to a 3-player CFR solve, flagged with a "no guarantee" label (as GTO Wizard benchmarks it: lock one player, best-respond).
 8. **More preflop sizes.** Multiple open and 3-bet sizes, plus 4-bet all-ins, once 1 is in place.
-9. **Postflop drills.** A library of pre-solved spots (common flops for each preflop line) built on the PC, served like `preflop-*.bin`.
+9. **Postflop drills.** *Partly done 2026-11-27: 108 river/turn spots shipped with approximate ranges; flop spots and solve-derived ranges remain.* A library of pre-solved spots (common flops for each preflop line) built on the PC, served like `preflop-*.bin`.
 10. **Benchmarks and CI.** A fixed spot set with known published answers. Run it on every solver change and keep the history in `bench/`.
 11. **A GTO bot table mode.** Opponents play the solver's strategy, so Levi can test himself against balanced play as well as normies.
 
