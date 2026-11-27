@@ -179,7 +179,7 @@ function renderHeroCards(h) {
     el.innerHTML = h.cards.map(c => cardHTML(c, 'deal')).join('') + '<span class="hint">swipe up to fold</span>';
   }
   el.classList.toggle('mucked', h.folded && !h.out);
-  el.classList.toggle('queued', queuedFold && !h.folded);
+  el.classList.toggle('queued', pre === 'checkfold' && !h.folded);
   const hint = el.querySelector('.hint');
   if (hint) hint.classList.toggle('on', hintsLeft > 0 && heroTurn && !game.legal().canCheck);
 }
@@ -188,35 +188,95 @@ function renderHeroCards(h) {
 let heroTurn = false;
 let heroResolve = null;
 let nextResolve = null;
-let queuedFold = false;
+// advance action picked while waiting: null | 'checkfold' | 'check' | 'call' | 'callany'
+let pre = null;
+let preCall = 0;
+let selTo = 0;        // raise size picked for this decision
+let selLabel = '';
 
-function defaultRaise(L) {
-  const pot = game.totalPot;
-  if (game.street === 'preflop') {
-    if (game.currentBet <= BB) {
-      const limpers = game.players.filter(p => !p.folded && p.bet === BB).length - 1;
-      return 2.5 * BB + Math.max(0, limpers) * BB;
-    }
-    return game.currentBet * 3;
-  }
-  if (L.currentBet === 0) return pot * 0.5;
-  return game.currentBet * 3;
-}
 const clampTo = (L, to) => Math.max(L.minTo, Math.min(L.maxTo, Math.round(to / SB) * SB));
+
+// which kind of sizing decision this is
+function spot(L) {
+  if (game.street === 'preflop') return game.currentBet <= BB ? 'open' : 'vsRaise';
+  return L.currentBet === 0 ? 'bet' : 'vsBet';
+}
+const PREF_DEFAULT = { open: '2.5x', vsRaise: '3x', bet: '50%', vsBet: '3x' };
+
+// [label, raise-to] quick sizes for the current decision, deduped after clamping
+function sizes(L) {
+  const pot = game.totalPot;
+  const frac = (f) => game.currentBet + f * (pot + L.toCall);
+  const k = spot(L);
+  let list;
+  if (k === 'open') {
+    list = [2, 2.5, 3, 3.5, 4, 5, 6].map(m => [`${m}x`, m * BB]);
+  } else if (k === 'vsRaise') {
+    list = [2.2, 2.5, 3, 3.5, 4, 5].map(m => [`${m}x`, m * game.currentBet]);
+  } else if (k === 'bet') {
+    list = [25, 33, 50, 66, 75, 100, 125, 150, 200].map(p => [`${p}%`, frac(p / 100)]);
+  } else {
+    list = [2.2, 2.5, 3, 3.5, 4, 5].map(m => [`${m}x`, m * game.currentBet]);
+  }
+  if (k !== 'bet') list.push(['Pot', frac(1)]);
+  const out = [], seen = new Set();
+  for (const [l, v] of list) {
+    const to = clampTo(L, v);
+    if (to >= L.maxTo || seen.has(to)) continue;
+    seen.add(to); out.push([l, to]);
+  }
+  out.push(['All-in', L.maxTo]);
+  return out;
+}
+
+function pickDefault(L) {
+  const list = sizes(L);
+  const want = settings.pref?.[spot(L)] ?? PREF_DEFAULT[spot(L)];
+  const hit = list.find(([l]) => l === want) || list.find(([l]) => l === PREF_DEFAULT[spot(L)]) || list[0];
+  selLabel = hit[0]; selTo = hit[1];
+}
+
+function choose(label, to) {
+  selLabel = label; selTo = to;
+  const L = game.legal();
+  if (label && label !== 'All-in') { settings.pref = { ...settings.pref, [spot(L)]: label }; save(); }
+}
+
+function raiseWord(L, to) { return to === L.maxTo ? 'All-in' : L.currentBet === 0 ? 'Bet' : 'Raise'; }
+
+function renderQuick() {
+  const el = $('quick');
+  const h = hero();
+  if (!heroTurn || game.handOver) { el.innerHTML = ''; return; }
+  const L = game.legal();
+  if (!L.canRaise) { el.innerHTML = ''; return; }
+  el.innerHTML = sizes(L).map(([l, to]) => `<button class="${to === selTo ? 'on' : ''}" data-l="${l}" data-to="${to}">${l}</button>`).join('');
+  const on = el.querySelector('.on');
+  if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
 
 function renderActions() {
   const el = $('actions');
   const h = hero();
   el.classList.remove('waiting');
+  renderQuick();
   if (game.handOver) {
     el.innerHTML = `<button class="btn ghost" data-a="next">Next hand</button>`;
     return;
   }
   if (!heroTurn) {
-    el.classList.add('waiting');
-    const who = acting >= 0 ? game.players[acting] : null;
-    const text = h.folded ? 'Wait for the next hand' : queuedFold ? 'Fold queued · tap cards to undo' : who ? `${who.name} is thinking` : '';
-    el.innerHTML = `<button class="btn" disabled>${text}</button>`;
+    if (h.folded || h.allIn) {
+      el.classList.add('waiting');
+      el.innerHTML = `<button class="btn" disabled>${h.allIn ? 'All-in' : 'Wait for the next hand'}</button>`;
+      return;
+    }
+    // advance actions while others act
+    const owe = Math.min(game.currentBet - h.bet, h.stack);
+    if (pre === 'check' && owe > 0) pre = null;
+    if (pre === 'call' && owe !== preCall) pre = null;
+    const mid = owe === 0 ? ['check', 'Check'] : ['call', `Call ${amt(owe)}`];
+    const b = (k, t) => `<button class="btn pre ${pre === k ? 'on' : ''}" data-pre="${k}">${t}</button>`;
+    el.innerHTML = b('checkfold', owe === 0 ? 'Check/Fold' : 'Fold') + b(mid[0], mid[1]) + b('callany', 'Call any');
     return;
   }
   const L = game.legal();
@@ -224,9 +284,7 @@ function renderActions() {
   const first = L.canCheck ? `<button class="btn" data-a="check">Check</button>`
     : `<button class="btn" data-a="call">${callAll ? 'All-in' : 'Call'} ${amt(L.toCall)}</button>`;
   if (!L.canRaise) { el.innerHTML = first; return; }
-  const to = clampTo(L, defaultRaise(L));
-  const word = to === L.maxTo ? 'All-in' : L.currentBet === 0 ? 'Bet' : 'Raise';
-  el.innerHTML = `${first}<button class="btn" data-a="raise" data-to="${to}">${word} ${amt(to)}</button>
+  el.innerHTML = `${first}<button class="btn" data-a="raise" data-to="${selTo}">${raiseWord(L, selTo)} ${amt(selTo)}</button>
     <button class="btn sq" data-a="more" aria-label="More sizes"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
 }
 
@@ -238,6 +296,14 @@ function heroAct(type, to) {
 }
 
 $('actions').addEventListener('click', (e) => {
+  const p = e.target.closest('button[data-pre]');
+  if (p) {
+    const k = p.dataset.pre;
+    pre = pre === k ? null : k;
+    if (pre === 'call') { const h = hero(); preCall = Math.min(game.currentBet - h.bet, h.stack); }
+    render();
+    return;
+  }
   const b = e.target.closest('button[data-a]');
   if (!b) return;
   const a = b.dataset.a;
@@ -247,22 +313,18 @@ $('actions').addEventListener('click', (e) => {
   heroAct(a);
 });
 
+$('quick').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  choose(b.dataset.l, +b.dataset.to);
+  renderActions();
+});
+
 // ---------- raise sheet ----------
 let raiseTo = 0;
-function presetList(L) {
-  const pot = game.totalPot;
-  const frac = (f) => game.currentBet + f * (pot + L.toCall);
-  if (game.street === 'preflop') {
-    const base = game.currentBet <= BB ? [[2, '2x'], [2.5, '2.5x'], [3, '3x'], [4, '4x']].map(([m, l]) => [l, m * BB])
-      : [[2.5, '2.5x'], [3, '3x'], [4, '4x']].map(([m, l]) => [l, m * game.currentBet]);
-    return [...base, ['Pot', frac(1)], ['All-in', L.maxTo]];
-  }
-  return [['⅓', frac(1 / 3)], ['½', frac(0.5)], ['⅔', frac(2 / 3)], ['Pot', frac(1)], ['All-in', L.maxTo]];
-}
 function openRaise() {
   const L = game.legal();
-  raiseTo = clampTo(L, defaultRaise(L));
-  $('presets').innerHTML = presetList(L).map(([l, v]) => `<button data-to="${clampTo(L, v)}">${l}</button>`).join('');
+  raiseTo = selTo;
+  $('presets').innerHTML = sizes(L).map(([l, v]) => `<button data-l="${l}" data-to="${v}">${l}</button>`).join('');
   syncRaise();
   $('raiseSheet').classList.add('on');
   $('sheetBg').classList.add('on');
@@ -273,8 +335,11 @@ function syncRaise() {
   $('raiseUnit').textContent = settings.unit === 'bb' ? 'BB' : '';
   const t = L.maxTo > L.minTo ? Math.sqrt((raiseTo - L.minTo) / (L.maxTo - L.minTo)) : 1;
   $('raiseSlider').value = Math.round(t * 1000);
-  const word = raiseTo === L.maxTo ? 'All-in' : L.currentBet === 0 ? 'Bet' : 'Raise to';
-  $('raiseGo').innerHTML = `${word} ${amt(raiseTo)}`;
+  // how big is this vs the pot, for reference
+  const potNow = game.totalPot + L.toCall;
+  const pct = Math.round(((raiseTo - game.currentBet) / Math.max(1, potNow)) * 100);
+  $('raisePct').textContent = `${pct}% pot`;
+  $('raiseGo').innerHTML = `${raiseWord(L, raiseTo) === 'Raise' ? 'Raise to' : raiseWord(L, raiseTo)} ${amt(raiseTo)}`;
   $('presets').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.to === raiseTo));
 }
 $('raiseSlider').addEventListener('input', (e) => {
@@ -286,8 +351,16 @@ $('raiseSlider').addEventListener('input', (e) => {
 });
 $('presets').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
-  raiseTo = +b.dataset.to; syncRaise();
+  raiseTo = +b.dataset.to;
+  choose(b.dataset.l, raiseTo);
+  syncRaise();
 });
+document.querySelectorAll('.step').forEach(b => b.addEventListener('click', () => {
+  const L = game.legal();
+  const step = (game.street === 'preflop' ? SB : BB) * +b.dataset.d;
+  raiseTo = b.dataset.d > 0 && raiseTo + step > L.maxTo ? L.maxTo : clampTo(L, raiseTo + step);
+  syncRaise();
+}));
 $('raiseGo').addEventListener('click', () => { closeSheets(); heroAct('raise', raiseTo); });
 function closeSheets() {
   document.querySelectorAll('.sheet').forEach(s => s.classList.remove('on'));
@@ -348,10 +421,10 @@ $('newTable').addEventListener('click', () => {
         el.classList.add('flyaway');
         setTimeout(() => heroAct('fold'), 180);
       } else {
-        queuedFold = true; render();
+        pre = 'checkfold'; render();
       }
-    } else if (tapped && queuedFold) {
-      queuedFold = false; render();
+    } else if (tapped && pre === 'checkfold') {
+      pre = null; render();
     }
   };
   el.addEventListener('pointerup', end);
@@ -383,14 +456,14 @@ async function loop() {
       resetRequested = false;
       session.hands = 0; session.net = 0; session.buyins = 1;
       seatTable(null);
-      queuedFold = false;
+      pre = null;
     }
     refill();
     const h0 = hero();
     const startStack = h0.stack;
     save();
     game.startHand();
-    queuedFold = false;
+    pre = null;
     let street = game.street;
     acting = -1;
     render();
@@ -400,10 +473,17 @@ async function loop() {
       const p = game.players[i];
       if (p.isHero) {
         acting = -1;
-        if (queuedFold) {
-          const L = game.legal();
-          game.act(L.canCheck ? 'check' : 'fold');
+        const L = game.legal();
+        const auto = pre === 'checkfold' ? (L.canCheck ? 'check' : 'fold')
+          : pre === 'check' && L.canCheck ? 'check'
+          : pre === 'call' && L.toCall === preCall ? 'call'
+          : pre === 'callany' ? (L.canCheck ? 'check' : 'call') : null;
+        if (pre !== 'checkfold' || !L.canCheck) pre = null;
+        if (auto) {
+          await sleep(200);
+          game.act(auto);
         } else {
+          pickDefault(L);
           heroTurn = true;
           render();
           const d = await new Promise(r => { heroResolve = r; });

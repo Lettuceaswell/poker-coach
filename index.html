@@ -31,7 +31,7 @@
     <div class="pot-row"><span id="status" class="status"></span><span id="pot" class="pot"></span></div>
   </section>
 
-  <section class="hero-bet-row"><span id="heroBet" class="bet-chip"></span></section>
+  <section class="hero-bet-row"><span id="heroBet" class="bet-chip"></span><div id="quick" class="quick"></div></section>
 
   <section id="actions" class="actions"></section>
 
@@ -48,7 +48,7 @@
 <div id="sheetBg" class="sheet-bg"></div>
 <div id="raiseSheet" class="sheet">
   <div class="grab"></div>
-  <div class="raise-amt"><span id="raiseVal"></span><small id="raiseUnit"></small></div>
+  <div class="raise-top"><button class="step" data-d="-1">−</button><div class="raise-amt"><span id="raiseVal"></span><small id="raiseUnit"></small><div id="raisePct" class="raise-pct"></div></div><button class="step" data-d="1">+</button></div>
   <div id="presets" class="presets"></div>
   <input id="raiseSlider" type="range" min="0" max="1000" step="1">
   <button id="raiseGo" class="btn primary wide"></button>

@@ -1,5 +1,5 @@
 // Network-first so pushes show up right away; cache keeps it playable offline.
-const CACHE = 'poker-coach-v1';
+const CACHE = 'poker-coach-v2';
 const FILES = ['./', 'index.html', 'css/style.css', 'js/app.js', 'js/engine.js', 'js/bots.js', 'js/cards.js',
   'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
