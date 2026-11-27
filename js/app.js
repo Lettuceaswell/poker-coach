@@ -241,7 +241,7 @@ function pickDefault(L) {
   const list = sizes(L);
   // with the coach on, start on the chip closest to the solver's raise size
   const r = cs?.mix?.find(m => m.t === 'r');
-  if (settings.coach === 'always' && r && r.freq >= 0.2) {
+  if (settings.coach === 'always' && r && (r.freq >= 0.2 || cs.pick === r)) {
     const best = list.reduce((b, x) => (Math.abs(x[1] - r.to * BB) < Math.abs(b[1] - r.to * BB) ? x : b));
     selLabel = best[0]; selTo = best[1];
     return;
@@ -299,9 +299,22 @@ function renderActions() {
   const callAll = L.toCall >= h.stack;
   const first = L.canCheck ? `<button class="btn" data-a="check">Check</button>`
     : `<button class="btn" data-a="call">${callAll ? 'All-in' : 'Call'} ${amt(L.toCall)}</button>`;
-  if (!L.canRaise) { el.innerHTML = first; return; }
+  if (!L.canRaise) { el.innerHTML = first; highlightPick(); return; }
+  queueMicrotask(highlightPick);
   el.innerHTML = `${first}<button class="btn" data-a="raise" data-to="${selTo}">${raiseWord(L, selTo)} ${amt(selTo)}</button>
     <button class="btn sq" data-a="more" aria-label="More sizes"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+}
+
+function highlightPick() {
+  document.querySelectorAll('.rec').forEach(x => x.classList.remove('rec'));
+  if (!heroTurn || !cs?.pick || settings.coach !== 'always') return;
+  const t = cs.pick.t;
+  const sel = t === 'r' ? '#actions [data-a="raise"]' : t === 'c' ? '#actions [data-a="call"], #actions [data-a="check"]' : '#heroCards';
+  document.querySelectorAll(sel).forEach(x => x.classList.add('rec'));
+  if (t === 'r') {
+    const chip = [...document.querySelectorAll('#quick button')].find(b => +b.dataset.to === selTo);
+    chip?.classList.add('rec');
+  }
 }
 
 function heroAct(type, to) {
@@ -527,6 +540,7 @@ async function loop() {
           : pre === 'call' && L.toCall === preCall ? 'call'
           : pre === 'callany' ? (L.canCheck ? 'check' : 'call') : null;
         if (pre !== 'checkfold' || !L.canCheck) pre = null;
+        newRoll();
         cs = readSpot();
         if (auto) {
           await sleep(200);
@@ -608,15 +622,33 @@ function readSpot() {
   const probs = strategyAt(S.strat, m.node, cls);
   if (!probs) return { ...base, off: true, why: 'no data' };
   const cur = Math.max(...game.players.map(p => p.bet)) / BB;
+  // isolating limpers: the open size plus 1 BB per limper (unopened pots only)
+  const iso = (a) => (a.t === 'r' && m.limpers && a.to < STACK && game.players.every(p => p.bet <= BB) ? a.to + m.limpers : a.to);
   const mix = m.node.acts.map((a, i) => ({
-    t: a.t, to: a.to, freq: probs[i],
-    label: a.t === 'f' ? 'Fold' : a.t === 'c' ? (cur > h.bet / BB ? 'Call' : 'Check') : a.to >= STACK ? 'All-in' : `Raise ${num(a.to * BB)}`,
+    t: a.t, to: iso(a), freq: probs[i],
+    label: a.t === 'f' ? 'Fold' : a.t === 'c' ? (cur > h.bet / BB ? 'Call' : 'Check') : a.to >= STACK ? 'All-in' : `Raise ${num(iso(a) * BB)}`,
   }));
   const rare = S.vis[m.node.id] < RARE_VIS;
-  return { ...base, mix, quality: m.quality, why: m.why, rare };
+  return withRoll({ ...base, mix, quality: m.quality, why: m.why, rare });
 }
 
 const COLOR = { r: '#ff7a5c', c: '#3ee6a0', f: '#6b6b72' };
+
+// The die: a fresh 1-100 roll per decision picks one action from the mix, so mixed
+// strategies get played at the right frequencies. Ranges follow the displayed order.
+let roll = 0;
+function newRoll() { roll = 1 + Math.floor(Math.random() * 100); }
+function ordered(mix) { return mix.filter(m => m.freq >= 0.005).sort((a, b) => b.freq - a.freq); }
+function withRoll(sp) {
+  let lo = 1;
+  const list = ordered(sp.mix);
+  list.forEach((m, i) => {
+    const hi = i === list.length - 1 ? 100 : Math.min(100, lo - 1 + Math.round(m.freq * 100));
+    m.lo = lo; m.hi = hi; lo = hi + 1;
+  });
+  sp.pick = list.find(m => roll >= m.lo && roll <= m.hi) || list[list.length - 1];
+  return sp;
+}
 function mixBar(mix) {
   return `<span class="mixbar">${mix.filter(m => m.freq > 0.005).map(m => `<i style="flex:${m.freq};background:${COLOR[m.t]}"></i>`).join('')}</span>`;
 }
@@ -631,9 +663,9 @@ function coachHTML() {
   if (heroTurn && cs && settings.coach === 'always') {
     if (cs.loading) return '<span class="coach dim">Coach loading…</span>';
     if (cs.off) return `<span class="coach dim">${cs.pos} · ${cs.hand} · no solution here (${cs.why})</span>`;
-    const parts = cs.mix.filter(m => m.freq >= 0.01).sort((a, b) => b.freq - a.freq)
-      .map(m => `<b style="color:${COLOR[m.t]}">${m.label}</b> ${Math.round(m.freq * 100)}%`).join(' · ');
-    return `<span class="coach">${cs.pos} · ${cs.hand}${tag(cs)}<br>${parts}${mixBar(cs.mix)}</span>`;
+    const parts = ordered(cs.mix).filter(m => m.hi >= m.lo)
+      .map(m => `<b class="${cs.pick === m ? 'picked' : ''}" style="color:${COLOR[m.t]}">${m.label}</b> ${m.lo === m.hi ? m.lo : m.lo + '–' + m.hi}`).join(' · ');
+    return `<span class="coach"><span class="die">${roll}</span>${cs.pos} · ${cs.hand}${tag(cs)}<br>${parts}${mixBar(cs.mix)}</span>`;
   }
   if (graded) return graded.html;
   return '';

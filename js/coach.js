@@ -32,7 +32,7 @@ export function mapSpot(game) {
   const labels = game.positions();
   const posOf = (seat) => POSITIONS[n].indexOf(labels[seat]);
   let node = tree.nodes[0];
-  let quality = 'exact', why = '';
+  let quality = 'exact', why = '', limpers = 0;
   const soften = (w) => { if (quality === 'exact') { quality = 'approx'; why = w; } };
 
   // stacks far from 100 BB change the right answer
@@ -54,7 +54,8 @@ export function mapSpot(game) {
       if (want === 'c' && node.acts.find(x => x.t === 'f')) {
         // a limp or extra cold call the tree doesn't have: treat it as a fold (dead money)
         a = node.acts.find(x => x.t === 'f');
-        soften(want === 'c' && h.amount <= game.bb ? 'limper' : 'extra caller');
+        if (h.amount <= game.bb) limpers++;
+        soften(h.amount <= game.bb ? 'limper' : 'extra caller');
       } else if (want === 'r') {
         // raise beyond the cap: treat as a call
         a = node.acts.find(x => x.t === 'c');
@@ -74,7 +75,7 @@ export function mapSpot(game) {
     node = tree.nodes[a.next];
   }
   if (node.term) return { quality: 'off', why: 'past the tree' + (why ? ' after ' + why : '') };
-  return { node, tree, pos: node.p, quality, why };
+  return { node, tree, pos: node.p, quality, why, limpers };
 }
 
 // Strategy table: { n, offsets: Int32Array per node into data, data: Uint8Array (0..255) }

@@ -31,12 +31,13 @@ export class Game {
   inHand(p) { return !p.folded && !p.out; }
   canAct(p) { return !p.folded && !p.out && !p.allIn; }
 
-  startHand() {
+  // deck (optional): cards dealt from the END of the array, for tests
+  startHand(deck) {
     const ps = this.players;
     for (const p of ps) {
       p.out = p.stack <= 0;
       p.cards = []; p.bet = 0; p.totalIn = 0; p.folded = p.out; p.allIn = false; p.last = '';
-      p.shown = false;
+      p.shown = false; p.facedAt = null;
     }
     const seated = ps.filter(p => !p.out);
     if (seated.length < 2) throw new Error('need two players');
@@ -44,7 +45,7 @@ export class Game {
     this.handOver = false;
     this.result = null;
     this.board = [];
-    this.deck = shuffle(newDeck(), this.rng);
+    this.deck = deck ? deck.slice() : shuffle(newDeck(), this.rng);
     this.street = 'preflop';
     const live = (p) => !p.out;
     this.button = this.next(this.button, live);
@@ -82,7 +83,10 @@ export class Game {
     const p = this.players[this.toAct];
     const toCall = Math.min(this.currentBet - p.bet, p.stack);
     const others = this.players.filter((q, i) => i !== this.toAct && this.canAct(q));
-    const canRaise = p.stack > toCall && others.length > 0;
+    // A player who already acted this street may only re-raise if the bet has grown by at
+    // least a full raise since then (TDA: an incomplete all-in raise doesn't reopen betting).
+    const reopened = p.facedAt === null || this.currentBet - p.facedAt >= this.lastRaise;
+    const canRaise = p.stack > toCall && others.length > 0 && reopened;
     const maxTo = p.bet + p.stack;
     const minTo = Math.min(this.currentBet + this.lastRaise, maxTo);
     return { toCall, canCheck: toCall === 0, canRaise, minTo, maxTo, currentBet: this.currentBet };
@@ -116,6 +120,7 @@ export class Game {
       p.last = p.allIn ? 'All-in' : opened ? 'Bet' : 'Raise';
       this.needs = new Set(this.players.map((q, j) => j).filter(j => j !== i && this.canAct(this.players[j])));
     }
+    p.facedAt = this.currentBet;
     this.history.push({ street: this.street, seat: i, type, amount: p.bet });
     this.needs.delete(i);
     this.advance(i);
@@ -157,7 +162,7 @@ export class Game {
       return this.showdown();
     }
     this.dealStreet();
-    for (const p of this.players) if (p.last !== 'All-in' && p.last !== 'Fold') p.last = '';
+    for (const p of this.players) { p.facedAt = null; if (p.last !== 'All-in' && p.last !== 'Fold') p.last = ''; }
     this.needs = new Set(this.players.map((p, i) => i).filter(i => this.canAct(this.players[i])));
     this.toAct = this.next(this.button, (p, i) => this.needs.has(i));
   }
