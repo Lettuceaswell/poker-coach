@@ -3,6 +3,7 @@ import { makeBot, decide } from './bots.js';
 import { rankOf, suitOf, rankLabel, SUIT_GLYPH, describe } from './cards.js';
 import { mapSpot, handClass, className, strategyAt, decodeStrategy } from './coach.js';
 import { STACK } from './preflop-tree.js';
+import { estimate } from './ranges.js';
 
 const SB = 5, BB = 10, START = 100 * BB;
 const SPEED = { slow: [1200, 2200], normal: [600, 1300], fast: [220, 480] };
@@ -608,7 +609,8 @@ let graded = null;   // { hand, html } shown until the next decision
 
 const RARE_VIS = 4 * 16; // log2(visits)*4 below this = thin data (< ~65k visits)
 function readSpot() {
-  if (game.street !== 'preflop' || settings.coach === 'off') return null;
+  if (settings.coach === 'off') return null;
+  if (game.street !== 'preflop') return postflopSpot();
   const n = game.players.filter(p => !p.out).length;
   const S = strategies[n];
   if (!S) { loadStrategy(n); return { loading: true }; }
@@ -652,7 +654,32 @@ function withRoll(sp) {
 function mixBar(mix) {
   return `<span class="mixbar">${mix.filter(m => m.freq > 0.005).map(m => `<i style="flex:${m.freq};background:${COLOR[m.t]}"></i>`).join('')}</span>`;
 }
+// Postflop: 3+ players = estimate mode; heads-up = estimate first, live solver refines (postflop.js)
+function postflopSpot() {
+  const n = game.players.filter(p => !p.out).length;
+  const S = strategies[n];
+  if (!S) loadStrategy(n);
+  const heroI = game.players.findIndex(p => p.isHero);
+  const h = hero();
+  const e = estimate(game, heroI, S && S.strat ? S.strat : null);
+  const pos = game.positions()[heroI];
+  const desc = describe([...h.cards, ...game.board]);
+  if (!e) return { off: true, pos, hand: desc, why: 'no range data' };
+  const cur = Math.max(...game.players.map(p => p.bet)) / BB;
+  const mix = e.mix.map(m => ({
+    ...m,
+    label: m.t === 'f' ? 'Fold' : m.t === 'c' ? (cur > h.bet / BB ? 'Call' : 'Check')
+      : (m.to * BB >= h.bet + h.stack ? 'All-in' : `${cur > 0 ? 'Raise' : 'Bet'} ${num(m.to * BB)}`),
+  }));
+  const way = e.villains + 1;
+  return withRoll({
+    pos, hand: desc, mix, quality: 'estimate', estimate: true, way,
+    why: `${way > 2 ? way + '-way ' : ''}estimate · equity ${Math.round(e.eq * 100)}%${e.need ? ` vs ${Math.round(e.need * 100)}% needed` : ''}`,
+  });
+}
+
 function tag(sp) {
+  if (sp.estimate) return ` <em>≈ ${sp.why}</em>`;
   if (sp.quality === 'approx') return ` <em>≈ ${sp.why}</em>`;
   if (sp.rare) return ' <em>≈ rare spot</em>';
   return '';
