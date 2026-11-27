@@ -179,3 +179,17 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 .mode-go { position: absolute; right: 24px; top: 50%; transform: translateY(-50%); color: var(--dim); }
 .menu-set { color: var(--dim); }
 .hero-cards { will-change: transform; z-index: 5; }
+
+/* coach */
+.status { flex: 1; min-width: 0; }
+.coach { display: block; font-size: 13.5px; line-height: 1.45; color: #cfcfd3; }
+.coach b { font-weight: 600; }
+.coach em { font-style: normal; color: #f5c84a; font-size: 12px; }
+.coach .dim, .coach.dim { color: var(--dim); }
+.mixbar { display: flex; height: 5px; border-radius: 3px; overflow: hidden; margin-top: 5px; max-width: 220px; gap: 1px; }
+.mixbar i { display: block; height: 100%; }
+.grade { display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; padding: 1px 7px; border-radius: 999px; margin-right: 4px; }
+.grade.g { background: rgba(62, 230, 160, .16); color: var(--go); }
+.grade.y { background: rgba(245, 200, 74, .16); color: #f5c84a; }
+.grade.r { background: rgba(255, 92, 92, .18); color: #ff6b6b; }
+.pot-row { align-items: flex-start; }

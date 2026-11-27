@@ -1,6 +1,8 @@
 import { Game } from './engine.js';
 import { makeBot, decide } from './bots.js';
 import { rankOf, suitOf, rankLabel, SUIT_GLYPH, describe } from './cards.js';
+import { mapSpot, handClass, className, strategyAt, decodeStrategy } from './coach.js';
+import { STACK } from './preflop-tree.js';
 
 const SB = 5, BB = 10, START = 100 * BB;
 const SPEED = { slow: [1200, 2200], normal: [600, 1300], fast: [220, 480] };
@@ -10,8 +12,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 // ---------- saved state ----------
 const KEY = 'poker-coach-v1';
 const saved = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })();
-const settings = { unit: 'bb', fourColor: false, seats: 6, speed: 'normal', felt: 'black', ...saved.settings };
-const session = { hands: 0, net: 0, buyins: 1, ...saved.session };
+const settings = { unit: 'bb', fourColor: false, seats: 6, speed: 'normal', felt: 'black', stacks: 'reset', coach: 'always', ...saved.settings };
+const session = { hands: 0, net: 0, buyins: 1, pfN: 0, pfGood: 0, ...saved.session };
 let hintsLeft = saved.hintsLeft ?? 3;
 
 function save() {
@@ -42,6 +44,7 @@ function seatTable(restore) {
 
 function refill() {
   const taken = new Set(game.players.map(p => p.name));
+  if (settings.stacks === 'reset') for (const p of game.players) p.stack = START;
   game.players.forEach((p, i) => {
     if (p.isHero) {
       if (p.stack < BB) { p.stack = START; session.buyins++; }
@@ -98,7 +101,8 @@ function applySettings() {
     seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(settings[seg.dataset.key]) === b.dataset.v));
   });
   const net = session.net / BB;
-  $('sessionStats').textContent = `Hands ${session.hands} · Net ${net >= 0 ? '+' : ''}${net.toFixed(1)} BB · Buy-ins ${session.buyins}`;
+  const acc = session.pfN ? ` · Preflop ${Math.round(100 * session.pfGood / session.pfN)}% (${session.pfN})` : '';
+  $('sessionStats').textContent = `Hands ${session.hands} · Net ${net >= 0 ? '+' : ''}${net.toFixed(1)} BB${acc}`;
 }
 
 function winnersSet() {
@@ -155,6 +159,8 @@ function render() {
     const total = [...wins.values()].reduce((s, w) => s + w.amount, 0);
     const verb = names.length > 1 ? 'split' : names[0] === 'You' ? 'win' : 'wins';
     $('status').innerHTML = `<b>${names.join(' & ')}</b> ${verb} ${amt(total)}${r.showdown && top?.hand ? ` · ${top.hand}` : ''}`;
+  } else if (coachHTML()) {
+    $('status').innerHTML = coachHTML();
   } else {
     $('status').textContent = game.street ? game.street[0].toUpperCase() + game.street.slice(1) : '';
   }
@@ -233,6 +239,13 @@ function sizes(L) {
 
 function pickDefault(L) {
   const list = sizes(L);
+  // with the coach on, start on the chip closest to the solver's raise size
+  const r = cs?.mix?.find(m => m.t === 'r');
+  if (settings.coach === 'always' && r && r.freq >= 0.2) {
+    const best = list.reduce((b, x) => (Math.abs(x[1] - r.to * BB) < Math.abs(b[1] - r.to * BB) ? x : b));
+    selLabel = best[0]; selTo = best[1];
+    return;
+  }
   const want = settings.pref?.[spot(L)] ?? PREF_DEFAULT[spot(L)];
   const hit = list.find(([l]) => l === want) || list.find(([l]) => l === PREF_DEFAULT[spot(L)]) || list[0];
   selLabel = hit[0]; selTo = hit[1];
@@ -258,6 +271,7 @@ function renderQuick() {
 }
 
 function renderActions() {
+  if (heroTurn && cs && graded) graded = null;
   const el = $('actions');
   const h = hero();
   el.classList.remove('waiting');
@@ -485,7 +499,7 @@ async function loop() {
   for (;;) {
     if (resetRequested) {
       resetRequested = false;
-      session.hands = 0; session.net = 0; session.buyins = 1;
+      session.hands = 0; session.net = 0; session.buyins = 1; session.pfN = 0; session.pfGood = 0;
       seatTable(null);
       pre = null;
     }
@@ -513,8 +527,10 @@ async function loop() {
           : pre === 'call' && L.toCall === preCall ? 'call'
           : pre === 'callany' ? (L.canCheck ? 'check' : 'call') : null;
         if (pre !== 'checkfold' || !L.canCheck) pre = null;
+        cs = readSpot();
         if (auto) {
           await sleep(200);
+          grade(auto);
           game.act(auto);
         } else {
           pickDefault(L);
@@ -523,8 +539,10 @@ async function loop() {
           const d = await new Promise(r => { heroResolve = r; });
           heroTurn = false;
           if (resetRequested) break;
+          grade(d.type);
           game.act(d.type, d.to);
         }
+        cs = null;
       } else {
         await think(i);
         if (resetRequested) break;
@@ -540,6 +558,7 @@ async function loop() {
     }
     if (resetRequested) continue;
     acting = -1;
+    if (graded && graded.hand !== game.handNo) graded = null;
     session.hands++;
     session.net += hero().stack - startStack;
     save();
@@ -552,6 +571,95 @@ async function loop() {
   }
 }
 
+// ---------- coach ----------
+const strategies = {};   // n -> { strat, vis } | 'loading' | 'missing'
+async function loadStrategy(n) {
+  if (strategies[n]) return;
+  strategies[n] = 'loading';
+  try {
+    const get = async (f) => {
+      const res = await fetch(`data/${f}.gz`);
+      if (!res.ok) throw new Error(f);
+      const ds = res.body.pipeThrough(new DecompressionStream('gzip'));
+      return new Uint8Array(await new Response(ds).arrayBuffer());
+    };
+    const [bin, vis] = await Promise.all([get(`preflop-${n}.bin`), get(`preflop-${n}.vis`)]);
+    strategies[n] = { strat: decodeStrategy(n, bin), vis };
+  } catch (e) { strategies[n] = 'missing'; setTimeout(() => { delete strategies[n]; }, 60000); }
+  if (heroTurn) { cs = readSpot(); render(); }
+}
+
+let cs = null;     // coach reading for the current hero decision
+let graded = null;   // { hand, html } shown until the next decision
+
+const RARE_VIS = 4 * 16; // log2(visits)*4 below this = thin data (< ~65k visits)
+function readSpot() {
+  if (game.street !== 'preflop' || settings.coach === 'off') return null;
+  const n = game.players.filter(p => !p.out).length;
+  const S = strategies[n];
+  if (!S) { loadStrategy(n); return { loading: true }; }
+  if (S === 'loading') return { loading: true };
+  if (S === 'missing') return null;
+  const m = mapSpot(game);
+  const h = hero();
+  const cls = handClass(h.cards);
+  const base = { cls, hand: className(cls), pos: game.positions()[game.players.indexOf(h)] };
+  if (m.quality === 'off') return { ...base, off: true, why: m.why };
+  const probs = strategyAt(S.strat, m.node, cls);
+  if (!probs) return { ...base, off: true, why: 'no data' };
+  const cur = Math.max(...game.players.map(p => p.bet)) / BB;
+  const mix = m.node.acts.map((a, i) => ({
+    t: a.t, to: a.to, freq: probs[i],
+    label: a.t === 'f' ? 'Fold' : a.t === 'c' ? (cur > h.bet / BB ? 'Call' : 'Check') : a.to >= STACK ? 'All-in' : `Raise ${num(a.to * BB)}`,
+  }));
+  const rare = S.vis[m.node.id] < RARE_VIS;
+  return { ...base, mix, quality: m.quality, why: m.why, rare };
+}
+
+const COLOR = { r: '#ff7a5c', c: '#3ee6a0', f: '#6b6b72' };
+function mixBar(mix) {
+  return `<span class="mixbar">${mix.filter(m => m.freq > 0.005).map(m => `<i style="flex:${m.freq};background:${COLOR[m.t]}"></i>`).join('')}</span>`;
+}
+function tag(sp) {
+  if (sp.quality === 'approx') return ` <em>≈ ${sp.why}</em>`;
+  if (sp.rare) return ' <em>≈ rare spot</em>';
+  return '';
+}
+
+// what goes in the status line
+function coachHTML() {
+  if (heroTurn && cs && settings.coach === 'always') {
+    if (cs.loading) return '<span class="coach dim">Coach loading…</span>';
+    if (cs.off) return `<span class="coach dim">${cs.pos} · ${cs.hand} · no solution here (${cs.why})</span>`;
+    const parts = cs.mix.filter(m => m.freq >= 0.01).sort((a, b) => b.freq - a.freq)
+      .map(m => `<b style="color:${COLOR[m.t]}">${m.label}</b> ${Math.round(m.freq * 100)}%`).join(' · ');
+    return `<span class="coach">${cs.pos} · ${cs.hand}${tag(cs)}<br>${parts}${mixBar(cs.mix)}</span>`;
+  }
+  if (graded) return graded.html;
+  return '';
+}
+
+function grade(type) {
+  const sp = cs;
+  if (!sp || sp.loading || sp.off || !sp.mix) return;
+  const t = type === 'fold' ? 'f' : type === 'raise' ? 'r' : 'c';
+  const mine = sp.mix.find(m => m.t === t) || (t === 'f' ? sp.mix.find(m => m.t === 'c') : null);
+  if (!mine) return;
+  const top = sp.mix.reduce((a, b) => (b.freq > a.freq ? b : a));
+  const f = mine.freq;
+  const [word, cls] = f >= 0.5 || mine === top ? ['Best', 'g'] : f >= 0.15 ? ['Good', 'g'] : f >= 0.03 ? ['Rare', 'y'] : ['Mistake', 'r'];
+  if (sp.quality === 'exact' && !sp.rare) {
+    session.pfN++;
+    if (cls === 'g') session.pfGood++;
+  }
+  const solver = sp.mix.filter(m => m.freq >= 0.01).sort((a, b) => b.freq - a.freq)
+    .map(m => `${m.label.replace(/ [\d.,]+$/, '')} ${Math.round(m.freq * 100)}%`).join(' · ');
+  graded = {
+    hand: game.handNo,
+    html: `<span class="coach"><span class="grade ${cls}">${word}</span> ${sp.pos} · ${sp.hand}${tag(sp)}<br><span class="dim">${solver}</span></span>`,
+  };
+}
+
 // ---------- menu ----------
 function showMenu() {
   paused = true;
@@ -559,7 +667,7 @@ function showMenu() {
   const h = game.players.find(p => p.isHero);
   const net = session.net / BB;
   $('modeSub').textContent = session.hands
-    ? `${game.players.length} players · ${session.hands} hands · ${net >= 0 ? '+' : ''}${net.toFixed(1)} BB`
+    ? `${game.players.length} players · ${session.hands} hands · ${net >= 0 ? '+' : ''}${net.toFixed(1)} BB${session.pfN ? ` · preflop ${Math.round(100 * session.pfGood / session.pfN)}%` : ''}`
     : `No-Limit Hold'em · 100 BB · ${settings.seats} players`;
   $('menu').classList.add('on');
 }
