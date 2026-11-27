@@ -1,5 +1,7 @@
 # Poker Coach
 
+
+Start here: `LOG.md` (what exists, how to test), `TODO.md` (next steps), `SPEC.md` (feature decisions).
 6-max no-limit hold'em PWA: you play by hand against 2–5 average-level bots, with a solver coach.
 
 - `node tools/sim.js [hands]`: hand-ranking checks plus bot-only hands (chip conservation, no hangs)
