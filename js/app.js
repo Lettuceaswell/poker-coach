@@ -4,6 +4,7 @@ import { rankOf, suitOf, rankLabel, SUIT_GLYPH, describe } from './cards.js';
 import { mapSpot, handClass, className, strategyAt, decodeStrategy } from './coach.js';
 import { STACK } from './preflop-tree.js';
 import { estimate } from './ranges.js';
+import * as pf from './postflop-coach.js';
 
 const SB = 5, BB = 10, START = 100 * BB;
 const SPEED = { slow: [1200, 2200], normal: [600, 1300], fast: [220, 480] };
@@ -241,8 +242,9 @@ function sizes(L) {
 function pickDefault(L) {
   const list = sizes(L);
   // with the coach on, start on the chip closest to the solver's raise size
-  const r = cs?.mix?.find(m => m.t === 'r');
-  if (settings.coach === 'always' && r && (r.freq >= 0.2 || cs.pick === r)) {
+  const rs = (cs?.mix || []).filter(m => m.t === 'r');
+  const r = cs?.pick?.t === 'r' ? cs.pick : rs.sort((a, b) => b.freq - a.freq)[0];
+  if (settings.coach === 'always' && r && r.to && (r.freq >= 0.2 || cs.pick === r)) {
     const best = list.reduce((b, x) => (Math.abs(x[1] - r.to * BB) < Math.abs(b[1] - r.to * BB) ? x : b));
     selLabel = best[0]; selTo = best[1];
     return;
@@ -672,13 +674,31 @@ function postflopSpot() {
       : (m.to * BB >= h.bet + h.stack ? 'All-in' : `${cur > 0 ? 'Raise' : 'Bet'} ${num(m.to * BB)}`),
   }));
   const way = e.villains + 1;
-  return withRoll({
+  if (way === 2) pf.request(game, heroI, S && S.strat ? S.strat : null).catch(() => {});
+  return withRoll({ live: way === 2 ? { pending: true } : null,
     pos, hand: desc, mix, quality: 'estimate', estimate: true, way,
     why: `${way > 2 ? way + '-way ' : ''}estimate · equity ${Math.round(e.eq * 100)}%${e.need ? ` vs ${Math.round(e.need * 100)}% needed` : ''}`,
   });
 }
 
+function meter(lv) {
+  if (!lv || lv.pending) return '<span class="meter-text">solving…</span>';
+  if (lv.error) return `<span class="meter-text">solver unavailable</span>`;
+  let fill, text;
+  if (lv.exploit != null) {
+    // log scale: 20% of pot = empty, 0.3% = full
+    fill = Math.max(0.03, Math.min(1, Math.log(20 / Math.max(0.3, lv.exploit)) / Math.log(20 / 0.3)));
+    text = `${lv.done ? 'Solved' : 'Solving'} · within ${lv.exploit < 1 ? lv.exploit.toFixed(2) : lv.exploit.toFixed(1)}% of pot`;
+  } else {
+    fill = Math.min(1, lv.elapsed / lv.maxMs);
+    text = `${lv.done ? 'Solved' : 'Solving'} · ${lv.iter} passes`;
+  }
+  const notes = [lv.depthLimited ? 'river estimated' : '', lv.approx ? 'bet size off-tree' : '', lv.source === 'rough' || lv.source === 'narrowed' ? 'rough ranges' : ''].filter(Boolean);
+  return `<span class="meter"><i style="width:${Math.round(fill * 100)}%"></i></span><span class="meter-text">${text}${notes.length ? ' · ' + notes.join(' · ') : ''}</span>`;
+}
+
 function tag(sp) {
+  if (sp.solved) return '';
   if (sp.estimate) return ` <em>≈ ${sp.why}</em>`;
   if (sp.quality === 'approx') return ` <em>≈ ${sp.why}</em>`;
   if (sp.rare) return ' <em>≈ rare spot</em>';
@@ -692,7 +712,8 @@ function coachHTML() {
     if (cs.off) return `<span class="coach dim">${cs.pos} · ${cs.hand} · no solution here (${cs.why})</span>`;
     const parts = ordered(cs.mix).filter(m => m.hi >= m.lo)
       .map(m => `<b class="${cs.pick === m ? 'picked' : ''}" style="color:${COLOR[m.t]}">${m.label}</b> ${m.lo === m.hi ? m.lo : m.lo + '–' + m.hi}`).join(' · ');
-    return `<span class="coach"><span class="die">${roll}</span>${cs.pos} · ${cs.hand}${tag(cs)}<br>${parts}${mixBar(cs.mix)}</span>`;
+    const lv = cs.live ? `<span class="meter-row">${meter(cs.live)}</span>` : '';
+    return `<span class="coach"><span class="die">${roll}</span>${cs.pos} · ${cs.hand}${tag(cs)}<br>${parts}${mixBar(cs.mix)}${lv}</span>`;
   }
   if (graded) return graded.html;
   return '';
@@ -702,10 +723,13 @@ function grade(type) {
   const sp = cs;
   if (!sp || sp.loading || sp.off || !sp.mix) return;
   const t = type === 'fold' ? 'f' : type === 'raise' ? 'r' : 'c';
-  const mine = sp.mix.find(m => m.t === t) || (t === 'f' ? sp.mix.find(m => m.t === 'c') : null);
-  if (!mine) return;
-  const top = sp.mix.reduce((a, b) => (b.freq > a.freq ? b : a));
-  const f = mine.freq;
+  const byT = {};
+  for (const m of sp.mix) byT[m.t] = (byT[m.t] || 0) + m.freq;
+  if (byT[t] === undefined && !(t === 'f' && byT.c !== undefined)) return;
+  const f = byT[t] ?? 0;
+  const topT = Object.keys(byT).reduce((a, b) => (byT[b] > byT[a] ? b : a));
+  const mine = { freq: f };
+  const top = topT === t ? mine : null;
   const [word, cls] = f >= 0.5 || mine === top ? ['Best', 'g'] : f >= 0.15 ? ['Good', 'g'] : f >= 0.03 ? ['Rare', 'y'] : ['Mistake', 'r'];
   if (sp.quality === 'exact' && !sp.rare) {
     session.pfN++;
@@ -717,6 +741,40 @@ function grade(type) {
     hand: game.handNo,
     html: `<span class="coach"><span class="grade ${cls}">${word}</span> ${sp.pos} · ${sp.hand}${tag(sp)}<br><span class="dim">${solver}</span></span>`,
   };
+}
+
+// live postflop solver updates
+let lastPickKey = '';
+pf.setUpdateHandler((m, cur) => {
+  if (!heroTurn || !cs || !cs.live || game.street === 'preflop') return;
+  if (m.error) { cs.live = { error: m.error }; return refreshCoach(); }
+  const st = m.strategies && Object.values(m.strategies)[0];
+  cs.live = { iter: m.iter, exploit: m.exploit, done: m.done, elapsed: m.elapsedMs, maxMs: { flop: 20000, turn: 30000, river: 8000 }[game.street],
+    depthLimited: m.depthLimited, approx: m.approx, source: cur.source };
+  // only replace the estimate once the solver is clearly past its noisy start
+  const ready = m.done || (m.exploit != null ? m.exploit < 15 : m.iter >= 40);
+  if (ready && st && st.probs && m.player === cur.heroSide) {
+    const L = game.legal();
+    cs.mix = st.actions.map((a, i) => ({
+      t: a.type === 'fold' ? 'f' : a.type === 'check' || a.type === 'call' ? 'c' : 'r',
+      to: a.amount, freq: st.probs[i],
+      label: a.type === 'fold' ? 'Fold' : a.type === 'check' ? 'Check' : a.type === 'call' ? 'Call'
+        : a.type === 'allin' || a.amount * BB >= L.maxTo ? 'All-in' : `${a.type === 'bet' ? 'Bet' : 'Raise'} ${num(a.amount * BB)}`,
+    }));
+    cs.solved = true;
+    withRoll(cs);
+  }
+  refreshCoach();
+});
+function refreshCoach() {
+  if (!heroTurn) return;
+  $('status').innerHTML = coachHTML();
+  const key = cs?.pick ? cs.pick.t + ':' + (cs.pick.to || '') : '';
+  if (key !== lastPickKey) {
+    lastPickKey = key;
+    pickDefault(game.legal());
+    renderActions();
+  } else highlightPick();
 }
 
 // ---------- menu ----------
@@ -751,4 +809,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // test hook
-window.__poker = { game: () => game, settings, play };
+window.__poker = { game: () => game, settings, play, coach: () => cs };

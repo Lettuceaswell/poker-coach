@@ -15,7 +15,7 @@ for (let a = 0; a < 52; a++) for (let b = a + 1; b < 52; b++) COMBOS.push([a, b,
 // fallback when the preflop line isn't on the tree: rough Chen-score cutoffs
 function chenRange(minChen) {
   const w = new Float32Array(169);
-  for (const [a, b, c] of COMBOS) w[c] = chen([a, b]) >= minChen ? 1 : 0.05;
+  for (const [a, b, c] of COMBOS) w[c] = chen([a, b]) >= minChen ? 1 : 0;
   return w;
 }
 
