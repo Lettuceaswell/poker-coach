@@ -45,7 +45,7 @@ for (let k = 0; k < 500 && Object.keys(got).length < 6; k++) {
     await p.click('#panelClose'); await p.waitForTimeout(350);
   } else if (!got.peek) {
     const seat = await p.$('.seat:not(.folded)');
-    if (seat) { await seat.click(); await p.waitForTimeout(500); await shot('peek'); got.peek = 1; await p.click('#panelClose'); await p.waitForTimeout(350); }
+    if (seat && await seat.click({ timeout: 2000 }).then(() => true, () => false)) { await p.waitForTimeout(500); if (await p.evaluate(() => document.getElementById('panel').classList.contains('on'))) { await shot('peek'); got.peek = 1; await p.click('#panelClose'); await p.waitForTimeout(350); } }
   }
   // call/check down to reach showdowns
   const btn = await p.$(`#actions [data-a="${a}"]`); if (btn) await btn.click({ timeout: 3000 }).catch(() => {});
