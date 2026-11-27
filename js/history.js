@@ -5,7 +5,7 @@ import { EQ_VS_RANDOM } from './strength.js';
 const KEY = 'poker-coach-history-v1';
 const MAX_HANDS = 400;
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
-const db = { hands: [], orbit: 1, orbitStart: 0, calib: { n: 0, hits: 0, width: 0 }, leaks: {}, drills: { n: 0, good: 0, queue: [] }, ...load() };
+const db = { hands: [], orbit: 1, orbitStart: 0, reviews: {}, calib: { n: 0, hits: 0, width: 0 }, leaks: {}, drills: { n: 0, good: 0, queue: [] }, ...load() };
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch { db.hands = db.hands.slice(-150); } };
 
 export const history = db;
@@ -17,7 +17,8 @@ export function beginHand(game) {
   cur = {
     no: (db.hands.at(-1)?.no || 0) + 1, orbit: db.orbit, t: Date.now(),
     pos: pos[heroI], cards: game.players[heroI].cards.slice(), n: game.players.filter(p => !p.out).length,
-    start: game.players[heroI].stack, bb: game.bb, decisions: [],
+    // stack before the blinds went in, so blind hands show their real result
+    start: game.players[heroI].stack + game.players[heroI].totalIn, bb: game.bb, decisions: [],
   };
 }
 

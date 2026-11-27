@@ -901,6 +901,12 @@ function logHeroDecision(sp, t, word, gcls) {
     facing: L.toCall > 0, board: game.board.slice(), pot: game.totalPot / BB,
     need: L.toCall > 0 ? L.toCall / (game.totalPot + L.toCall) : null,
   };
+  if (L.toCall > 0) {
+    // who bet what, so a later review can describe the spot
+    const ag = [...game.history].reverse().find(h => h.street === game.street && h.type === 'raise' && h.seat !== heroI);
+    const who = ag ? game.positions()[ag.seat] : '';
+    rec.facingText = `Facing ${who ? who + "'s " : 'a '}${pre ? 'raise' : 'bet'} to ${+((ag ? ag.amount : 0) / BB).toFixed(1)} BB · ${+(L.toCall / BB).toFixed(1)} BB to call into a ${+(game.totalPot / BB).toFixed(1)} BB pot (their bet included)`;
+  }
   if (pre) {
     rec.n = sp.n; rec.nodeId = sp.nodeId; rec.cls = sp.cls; rec.sit = preflopSit();
     try {
@@ -970,19 +976,47 @@ function refreshCoach() {
 
 // ---------- panels: coach, opponent peek, replay, orbit review, leaks, hands ----------
 let panelResolve = null;
-function openPanel(title, html, aside = '') {
-  $('panelTitle').textContent = title;
-  $('panelAside').innerHTML = aside;
-  $('panelBody').innerHTML = html;
+// Panels stack: opening one from inside another pushes it; Back returns with the
+// previous view (and its state) intact; X closes everything.
+const panelStack = []; // { title, aside, el, scroll, resolve }
+function panelView() { return panelStack.length ? panelStack[panelStack.length - 1].el : $('panelBody'); }
+function showTop() {
+  const top = panelStack[panelStack.length - 1];
+  $('panelTitle').textContent = top.title;
+  $('panelAside').innerHTML = top.aside;
+  panelStack.forEach(v => { v.el.hidden = v !== top; });
+  $('panelBack').hidden = false; // always a way back; at the top level it closes
+  $('panelBody').scrollTop = top.scroll || 0;
+}
+function openPanel(title, html, aside = '', { replace = false } = {}) {
+  const open = $('panel').classList.contains('on') && panelStack.length;
+  if (!open) { while (panelStack.length) panelStack.pop().resolve(); $('panelBody').innerHTML = ''; }
+  if (open && replace) { const top = panelStack.pop(); top.el.remove(); top.resolve(); }
+  if (panelStack.length) panelStack[panelStack.length - 1].scroll = $('panelBody').scrollTop;
+  const el = document.createElement('div');
+  el.className = 'pview';
+  el.innerHTML = html;
+  $('panelBody').appendChild(el);
+  let resolve;
+  const done = new Promise(r => { resolve = r; });
+  panelStack.push({ title, aside, el, scroll: 0, resolve });
+  showTop();
   $('panelBody').scrollTop = 0;
   $('panel').classList.add('on');
-  return new Promise(r => { panelResolve = r; });
+  return done;
+}
+function panelBack() {
+  const top = panelStack.pop();
+  if (top) { top.el.remove(); top.resolve(); }
+  if (!panelStack.length) return closePanel();
+  showTop();
 }
 function closePanel() {
   $('panel').classList.remove('on');
-  const r = panelResolve; panelResolve = null; r?.();
+  while (panelStack.length) { const v = panelStack.pop(); v.el.remove(); v.resolve(); }
 }
 $('panelClose').addEventListener('click', closePanel);
+$('panelBack').addEventListener('click', panelBack);
 
 const SUITG = ['♠', '♥', '♦', '♣'];
 const cardTxt = (c) => `<span class="ct s-${suitOf(c)}">${rankLabel(rankOf(c))}${SUITG[suitOf(c)]}</span>`;
@@ -1016,10 +1050,11 @@ async function openCoachPanel() {
     coachToken = token;
     const build = (solved) => postflopPanelHTML(postflopDetail(game, heroI, strat, solved), solved, !solved && cs.live);
     openPanel(`${cs.pos} · ${cs.hand}`, build(null) + oppsHTML());
+    const coachView = panelView();
     if (cs.live) {
       const solved = await pf.detail(game, heroI).catch(() => null);
-      if (coachToken === token && $('panel').classList.contains('on') && solved) $('panelBody').innerHTML = build(solved) + oppsHTML();
-      else if (coachToken === token && $('panel').classList.contains('on')) { const w = $('panelBody').querySelector('.solver-wait'); if (w) w.remove(); }
+      if (coachToken === token && $('panel').classList.contains('on') && solved) coachView.innerHTML = build(solved) + oppsHTML();
+      else if (coachToken === token) { const w = coachView.querySelector('.solver-wait'); if (w) w.remove(); }
     }
     return;
   }
@@ -1126,35 +1161,72 @@ function handRows(hands) {
   }).join('');
 }
 
-// Orbit review: calibration questions, then the orbit's hands strongest first
+// Orbit review: one pivotal spot, two calibration questions, the verdict, then the orbit's hands
+// Pick the orbit's most instructive call decision: big pot and a close price-vs-equity gap.
+function pivotalSpot(hands) {
+  let best = null;
+  for (const h of hands) h.decisions.forEach((d, i) => {
+    if (d.need == null) return;
+    const close = d.eq != null ? 1 - Math.min(1, Math.abs(d.eq - d.need) / 0.25) : 0.4;
+    const score = (d.pot || 1) * (0.3 + close);
+    if (!best || score > best.score) best = { h, d, i, score, close };
+  });
+  if (!best) return null;
+  best.reason = best.d.eq != null && Math.abs(best.d.eq - best.d.need) < 0.08 ? 'Your closest call this orbit' : 'Your biggest call decision this orbit';
+  return best;
+}
+
 async function openOrbitReview(hands) {
+  const orbit = hands[0].orbit;
   const net = hands.reduce((s, h) => s + h.net / h.bb, 0);
   const ranked = hands.slice().sort((a, b) => H.strengthOf(b.cards) - H.strengthOf(a.cards));
+  const reviews = (H.history.reviews ||= {});
+  let rv = reviews[orbit];
+  if (!rv) {
+    const sp = settings.calibration ? pivotalSpot(hands) : null;
+    rv = reviews[orbit] = { hand: sp ? sp.h.no : null, i: sp ? sp.i : null, reason: sp ? sp.reason : '', answers: {} };
+    H.save();
+  }
+  const h0 = rv.hand != null ? hands.find(h => h.no === rv.hand) : null;
+  const d0 = h0 ? h0.decisions[rv.i] : null;
   const qs = [];
-  if (settings.calibration) {
-    const pool = hands.flatMap(h => h.decisions.map(d => ({ h, d })));
-    const needQ = pool.filter(x => x.d.need != null);
-    const eqQ = pool.filter(x => x.d.eq != null && x.d.facing);
-    const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
-    if (needQ.length) { const x = pickOne(needQ); qs.push({ kind: 'need', ...x, truth: x.d.need }); }
-    if (eqQ.length) { const x = pickOne(eqQ); qs.push({ kind: 'eq', ...x, truth: x.d.eq }); }
+  if (d0) {
+    qs.push({ kind: 'need', truth: d0.need, ask: 'How often did you need to win to make calling break even?' });
+    if (d0.eq != null) qs.push({ kind: 'eq', truth: d0.eq, ask: `How often does your hand win against their range${d0.street === 'preflop' ? ' (all-in equity, before position effects)' : ''}?` });
   }
   const c = H.history.calib;
-  const calibLine = () => c.n ? `Your 90% ranges caught the truth ${c.hits} of ${c.n} times (${Math.round(100 * c.hits / c.n)}%) · average width ${Math.round(c.width / c.n)} points. Aim for 9 in 10 with ranges as narrow as you can.` : 'Give a low and high number you are 90% sure the truth falls between. Over time, aim to be right 9 in 10 times with narrower ranges.';
+  const calibLine = c.n ? `Your 90% ranges have caught the truth ${c.hits} of ${c.n} times (${Math.round(100 * c.hits / c.n)}%), average width ${Math.round(c.width / c.n)} points. Aim for 9 in 10 with ranges as narrow as you can.`
+    : 'For each question, set a low and high number you are 90% sure the truth falls between. Over time, aim to be right 9 in 10 times with ranges as narrow as you can.';
+  const chosen = (d) => d.chosen === 'f' ? 'fold' : d.chosen === 'r' ? 'raise' : d.facing ? 'call' : 'check';
+  const spotHTML = d0 ? `<div class="spot">
+      <p class="small up-dim">${rv.reason}</p>
+      <p class="spot-line"><b>${d0.street[0].toUpperCase() + d0.street.slice(1)}</b> · ${h0.pos} · ${cardsTxt(h0.cards)}${d0.board && d0.board.length ? ' · board ' + cardsTxt(d0.board) : ''}</p>
+      <p class="small dim">${d0.facingText || ''}</p></div>` : '';
   const qHTML = qs.map((q, k) => {
-    const ctx = `${q.d.street[0].toUpperCase() + q.d.street.slice(1)} · ${q.h.pos} · ${cardsTxt(q.h.cards)}${q.d.board && q.d.board.length ? ' on ' + cardsTxt(q.d.board) : ''}`;
-    const ask = q.kind === 'need' ? 'How often did you need to win to call?' : 'How often did your hand win against their range?';
-    return `<div class="calq" data-k="${k}"><p class="small dim">${ctx}</p><p>${ask}</p>
-      <div class="dual"><div class="dual-track"><i class="dual-fill"></i><i class="dual-truth"></i></div>
-        <input type="range" min="0" max="100" value="20" class="lo"><input type="range" min="0" max="100" value="45" class="hi"></div>
-      <div class="calrow"><span class="calval">20% – 45%</span><button class="btn small-btn reveal">Reveal</button></div><p class="calres small"></p></div>`;
+    const a = rv.answers[q.kind];
+    const lo = a ? a.lo : 20, hi = a ? a.hi : 45;
+    return `<div class="calq" data-k="${k}"><p>${q.ask}</p>
+      <div class="dual"><div class="dual-track"><i class="dual-fill"></i><i class="dual-truth${a ? ' on' : ''}" style="left:${a ? a.truth : 0}%"></i></div>
+        <input type="range" min="0" max="100" value="${lo}" class="lo"${a ? ' disabled' : ''}><input type="range" min="0" max="100" value="${hi}" class="hi"${a ? ' disabled' : ''}></div>
+      <div class="calrow"><span class="calval">${lo}% – ${hi}%</span><button class="btn small-btn reveal"${a ? ' disabled' : ''}>Reveal</button></div>
+      <p class="calres small">${a ? resultText(a) : ''}</p></div>`;
   }).join('');
-  const html = `${qs.length ? `<section><h4>Calibration · 90% ranges</h4><p class="small dim">${calibLine()}</p>${qHTML}</section>` : ''}
-    <section><h4>This orbit, strongest hand first</h4><div class="hrows">${handRows(ranked)}</div></section>`;
-  const next = game.positions ? '' : '';
-  const done = openPanel(`Orbit ${hands[0].orbit}`, html, `<span class="${net >= 0 ? 'up' : 'down'}">${bbTxt(net)} BB</span>`);
-  // wire the dual sliders
-  $('panelBody').querySelectorAll('.calq').forEach(el => {
+  function resultText(a) { return `${a.hit ? '<b class="up">Inside your range.</b>' : '<b class="down">Outside your range.</b>'} The answer was ${a.truth}%.`; }
+  function verdictHTML() {
+    const n = rv.answers.need, e = rv.answers.eq;
+    if (!d0 || !n || (qs.length > 1 && !e)) return '';
+    const grade = `The coach graded your ${chosen(d0)} <span class="grade ${d0.gcls}">${d0.grade}</span>.`;
+    if (!e) return `<p class="verdict">${grade}</p>`;
+    const gap = e.truth - n.truth;
+    const side = gap >= 0 ? `calling had the edge by ${gap} points` : `folding had the edge by ${-gap} points`;
+    return `<p class="verdict">You needed ${n.truth}% and had ${e.truth}%: on price alone ${side}${d0.street === 'preflop' ? ' (position after the flop shifts this a little)' : ''}. ${grade}</p>`;
+  }
+  const html = `${qs.length ? `<section><h4>Calibration · 90% ranges</h4><p class="small dim">${calibLine}</p>${spotHTML}${qHTML}<div class="verdict-box">${verdictHTML()}</div>
+      <button class="btn wide spot-replay" data-hand="${h0.no}">Replay this hand</button></section>` : ''}
+    <section><h4>Orbit ${orbit}, strongest hand first</h4><div class="hrows">${handRows(ranked)}</div></section>`;
+  const done = openPanel(`Orbit ${orbit}`, html, `<span class="${net >= 0 ? 'up' : 'down'}">${bbTxt(net)} BB</span>`);
+  const view = panelView();
+  view.querySelectorAll('.calq').forEach(el => {
     const lo = el.querySelector('.lo'), hi = el.querySelector('.hi');
     const sync = () => {
       if (+lo.value > +hi.value) [lo.value, hi.value] = [hi.value, lo.value];
@@ -1166,9 +1238,12 @@ async function openOrbitReview(hands) {
       const q = qs[+el.dataset.k];
       const truth = Math.round(q.truth * 100);
       const hit = H.recordCalibration(+lo.value, +hi.value, truth);
+      const a = rv.answers[q.kind] = { lo: +lo.value, hi: +hi.value, truth, hit };
+      H.save();
       const t = el.querySelector('.dual-truth'); t.style.left = truth + '%'; t.classList.add('on');
-      el.querySelector('.calres').innerHTML = `${hit ? '<b class="up">Inside your range.</b>' : '<b class="down">Outside your range.</b>'} The answer was ${truth}%.`;
+      el.querySelector('.calres').innerHTML = resultText(a);
       ev.target.disabled = true; lo.disabled = true; hi.disabled = true;
+      view.querySelector('.verdict-box').innerHTML = verdictHTML();
     });
   });
   return done;
@@ -1182,12 +1257,27 @@ function openLeaks() {
   return openPanel('Leaks', html);
 }
 function openHands() {
-  const hands = H.history.hands.slice(-60).reverse();
-  return openPanel('Hands', hands.length ? `<div class="hrows">${handRows(hands)}</div>` : '<p class="dim">No hands yet.</p>');
+  const hands = H.history.hands.slice(-80);
+  if (!hands.length) return openPanel('Hands', '<p class="dim">No hands yet.</p>');
+  const orbits = [...new Set(hands.map(h => h.orbit))].reverse();
+  const html = orbits.map(o => {
+    const hs = hands.filter(h => h.orbit === o);
+    const net = hs.reduce((s, h) => s + h.net / h.bb, 0);
+    const closed = o < H.history.orbit;
+    return `<div class="orbit-group"><button class="orbit-head" data-orbit="${o}" ${closed ? '' : 'disabled'}>
+      <b>Orbit ${o}</b><span class="dim">${hs.length} hand${hs.length > 1 ? 's' : ''}${closed ? ' · review' : ' · in progress'}</span>
+      <span class="${net >= 0 ? 'up' : 'down'}">${bbTxt(net)} BB</span></button>
+      <div class="hrows">${handRows(hs.slice().reverse())}</div></div>`;
+  }).join('');
+  return openPanel('Hands', html);
 }
+$('panelBody').addEventListener('click', (e) => {
+  const oh = e.target.closest('[data-orbit]');
+  if (oh && !oh.disabled) openOrbitReview(H.history.hands.filter(h => h.orbit === +oh.dataset.orbit));
+});
 $('menuLeaks').addEventListener('click', openLeaks);
 $('menuHands').addEventListener('click', openHands);
-$('modeDrills').addEventListener('click', () => openDrills({ strategies, loadStrategy, seats: settings.seats, openPanel, closePanel, H, gridHTML, nodeMixes, BB }));
+$('modeDrills').addEventListener('click', () => { closePanel(); openDrills({ strategies, loadStrategy, seats: settings.seats, openPanel: (t, h) => openPanel(t, h, '', { replace: true }), panelView, closePanel, H, gridHTML, nodeMixes, BB }); });
 $('status').addEventListener('click', (e) => { if (e.target.closest('.why-btn')) { e.stopPropagation(); openCoachPanel(); } });
 
 // ---------- menu ----------

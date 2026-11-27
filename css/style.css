@@ -444,3 +444,21 @@ body.four .ct.s-2 { color: var(--blue); } body.four .ct.s-3 { color: var(--green
 .drill-next-bar { position: sticky; bottom: 0; padding: 12px 0 max(env(safe-area-inset-bottom), 8px); margin-top: 8px;
   background: linear-gradient(180deg, rgba(8, 8, 10, 0), rgba(8, 8, 10, .95) 30%); }
 .hgrid i.out { color: rgba(255, 255, 255, .35); text-shadow: none; }
+
+/* panel header: back on the left, close on the right */
+.panel-head #panelBack { margin-left: -8px; }
+.panel-head #panelClose { order: 4; margin-right: -8px; }
+.panel-head #panelAside { order: 3; }
+.panel-head #panelTitle { order: 2; }
+.panel-head #panelBack[hidden] + #panelClose { }
+.pview[hidden] { display: none; }
+/* orbit review */
+.spot { padding: 12px 14px; border-radius: 16px; background: #17171b; margin: 10px 0 4px; }
+.spot p { margin: 3px 0 !important; }
+.spot-line { font-size: 16px !important; }
+.up-dim { color: #cfcfd3; font-weight: 600; }
+.verdict { padding: 12px 14px; border-radius: 14px; background: #17171b; border: 1px solid #2a2a30; }
+.spot-replay { margin-top: 8px; font-size: 16px; }
+.orbit-group { margin-bottom: 16px; }
+.orbit-head { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; padding: 10px 4px; font-size: 15px; text-align: left; }
+.orbit-head:not(:disabled) b::after { content: " ›"; color: var(--dim); }

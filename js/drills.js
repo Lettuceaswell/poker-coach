@@ -115,7 +115,7 @@ export async function openDrills(ctx) {
       <div class="drill-out"></div>
       <p class="small dim drill-stats">${stats}</p></div>`;
     openPanel('Drills', html);
-    const body = document.getElementById('panelBody');
+    const body = ctx.panelView();
     body.querySelector('.drill-acts').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-i]'); if (!b || body.querySelector('.drill-acts').dataset.done) return;
       body.querySelector('.drill-acts').dataset.done = '1';

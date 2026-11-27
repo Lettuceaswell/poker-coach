@@ -15,6 +15,7 @@ Feature decisions live in `SPEC.md`; the plan lives in `TODO.md`.
 | `node tools/mapcheck.js <players> [hands]` | Share of hero preflop spots that land exactly on the solved tree |
 | `node tools/shoot.js` | Phone-sized Chromium playthrough, screenshots in `shots/` |
 | `node tools/coach-shots.js` | Drives every coaching screen |
+| `node tools/orbit-nav.js` | Orbit review: pivotal spot and verdict, Back navigation, reopening from Hands, blind-hand results |
 | `node tools/solve.js <players> <minutes> [seed]` | Preflop solve; follow with `node tools/pack.js` |
 
 The browser tools use playwright-core with `/usr/bin/chromium`. Long solves run under `systemd-run --user`; sessions kill background shells.
@@ -78,6 +79,11 @@ The browser tools use playwright-core with `/usr/bin/chromium`. Long solves run 
 - Drills: preflop spots from your leaks, in-range hands only.
 - Orbit review after each BB hand: 90% calibration questions (price needed, equity against their range), then the orbit's hands strongest first.
 - Reach tracking: grids grey out hands not in your range given your own earlier actions. This fixed 33/33/33 noise on unreached hands.
+
+**2026-11-28, after Levi's first phone session**
+- The orbit review quizzes the orbit's most instructive call: the biggest pot with the closest price-vs-equity gap. It says why that spot was chosen and gives the full context (who bet, how much, pot). Both questions ask about the same spot. Then a verdict ties the two answers together with the coach's grade, and a "Replay this hand" button follows.
+- Panels now stack. Opening something from inside a panel pushes it on top, and the always-visible Back arrow returns to the previous view with its state intact; X closes everything. Hands groups hands by orbit, and tapping a finished orbit reopens its review with your answers kept.
+- Fixed: hands where he paid a blind logged a +0.0 result, because the start stack was recorded after the blinds were posted.
 
 **Known gaps (honest)**
 - Never run on an actual iPhone. Safari speed is unknown.
