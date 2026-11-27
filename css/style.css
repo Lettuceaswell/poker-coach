@@ -462,3 +462,11 @@ body.four .ct.s-2 { color: var(--blue); } body.four .ct.s-3 { color: var(--green
 .orbit-group { margin-bottom: 16px; }
 .orbit-head { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; padding: 10px 4px; font-size: 15px; text-align: left; }
 .orbit-head:not(:disabled) b::after { content: " ›"; color: var(--dim); }
+
+/* ---- Progress screen ---- */
+.pg-row { padding: 10px 0; border-bottom: 1px solid #1d1d1f; }
+.pg-head { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.pg-head b { color: #d4af37; }
+.pg-best { margin-top: 6px; color: #d4af37; font-weight: 700; font-size: 13px; }
+.pg-mini { margin-top: 14px; font-size: 13px; color: #aaa; }
+.pg-mini:empty { display: none; }

@@ -9,6 +9,8 @@ import * as H from './history.js';
 import { preflopDetail, postflopDetail, villainView, storedPreflopGrid, nodeMixes } from './explain.js';
 import { gridHTML } from './grid.js';
 import { openDrills } from './drills.js';
+import { installPostflopDrills } from './postflop-drills.js';
+import { progressHTML, progressMini } from './progress.js';
 
 const SB = 5, BB = 10, START = 100 * BB;
 const SPEED = { slow: [1200, 2200], normal: [600, 1300], fast: [220, 480] };
@@ -1277,7 +1279,8 @@ $('panelBody').addEventListener('click', (e) => {
 });
 $('menuLeaks').addEventListener('click', openLeaks);
 $('menuHands').addEventListener('click', openHands);
-$('modeDrills').addEventListener('click', () => { closePanel(); openDrills({ strategies, loadStrategy, seats: settings.seats, openPanel: (t, h) => openPanel(t, h, '', { replace: true }), panelView, closePanel, H, gridHTML, nodeMixes, BB }); });
+$('menuProgress').addEventListener('click', () => openPanel('Progress', progressHTML()));
+$('modeDrills').addEventListener('click', () => { closePanel(); const dctx = { strategies, loadStrategy, seats: settings.seats, openPanel: (t, h) => openPanel(t, h, '', { replace: true }), panelView, closePanel, H, gridHTML, nodeMixes, BB }; installPostflopDrills(dctx, openDrills); openDrills(dctx); });
 $('status').addEventListener('click', (e) => { if (e.target.closest('.why-btn')) { e.stopPropagation(); openCoachPanel(); } });
 
 // ---------- menu ----------
@@ -1291,6 +1294,7 @@ function showMenu() {
     : `No-Limit Hold'em · 100 BB · ${settings.seats} players`;
   const lk = H.topLeaks(1)[0];
   $('drillSub').textContent = lk ? `Top leak: ${lk.label}` : 'Preflop spots from your leaks';
+  $('menuTrend').innerHTML = progressMini();
   $('menu').classList.add('on');
 }
 function play() {
