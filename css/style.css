@@ -439,3 +439,8 @@ body.four .ct.s-2 { color: var(--blue); } body.four .ct.s-3 { color: var(--green
 .menu-row { display: flex; gap: 10px; }
 .menu-row .btn { font-size: 16px; color: #d6d6da; }
 .replay-btn { color: #d6d6da; }
+
+/* drills: Next button pinned to the bottom */
+.drill-next-bar { position: sticky; bottom: 0; padding: 12px 0 max(env(safe-area-inset-bottom), 8px); margin-top: 8px;
+  background: linear-gradient(180deg, rgba(8, 8, 10, 0), rgba(8, 8, 10, .95) 30%); }
+.hgrid i.out { color: rgba(255, 255, 255, .35); text-shadow: none; }

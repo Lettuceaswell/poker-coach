@@ -56,6 +56,23 @@ for (const n of [3, 4, 5, 6]) {
   ok(good === all.length, `${n}-max drills: ${good}/${all.length} scenarios reach the hero`);
 }
 
+// drills only deal hands that are really in your range (e.g. after you opened and got 3-bet)
+{
+  const { reachAt } = await import('../js/coach.js');
+  for (const n of [4, 6]) {
+    const sc = drills.scenarios(n).filter(x => x.type === '3bet');
+    let bad = 0;
+    for (const s3 of sc) {
+      const node = drills.walk(n, s3);
+      const reach = reachAt(strat[n], n, node.path, s3.hero);
+      // 72o never opens, so it can't be in range facing a 3-bet
+      if (reach[0 * 13 + 5] > 0.05) bad++;
+      if (!(reach[12 * 13 + 12] > 0.1)) bad++; // AA gets here (SB sometimes limps it to trap)
+    }
+    ok(bad === 0, `${n}-max 3-bet drills: reach excludes 72o and keeps AA`);
+  }
+}
+
 // board tags sanity
 const C = s => s.match(/../g).map(t => '23456789TJQKA'.indexOf(t[0]) * 4 + 'shdc'.indexOf(t[1]));
 ok(boardTags(C('AhKhQh')).includes('monotone'), 'monotone tag');

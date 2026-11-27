@@ -1,6 +1,6 @@
 // Drills: preflop spots drawn from your leaks, answered with a tap, graded against the
 // solver with the range grid. Spots you miss come back a few drills later.
-import { treeFor, strategyAt, className } from './coach.js';
+import { treeFor, strategyAt, className, reachAt } from './coach.js';
 import { POSITIONS, STACK } from './preflop-tree.js';
 import { EQ_VS_RANDOM } from './strength.js';
 
@@ -10,22 +10,24 @@ const SG = ['♠', '♥', '♦', '♣'];
 export function walk(n, sc) {
   const tree = treeFor(n);
   let node = tree.nodes[0], raises = 0;
+  const path = [];
   for (let guard = 0; guard < 30 && !node.term; guard++) {
     const p = node.p;
     let want = 'f';
-    if (sc.type === 'first' && p === sc.hero) return node;
+    if (sc.type === 'first' && p === sc.hero) return Object.assign(Object.create(node), { path });
     if (sc.type === 'open') {
       if (p === sc.opener && raises === 0) want = 'r';
-      else if (p === sc.hero && raises === 1) return node;
+      else if (p === sc.hero && raises === 1) return Object.assign(Object.create(node), { path });
     }
     if (sc.type === '3bet') {
       if (p === sc.hero && raises === 0) want = 'r';
       else if (p === sc.three && raises === 1) want = 'r';
-      else if (p === sc.hero && raises === 2) return node;
+      else if (p === sc.hero && raises === 2) return Object.assign(Object.create(node), { path });
     }
     const a = node.acts.find(x => x.t === want) || node.acts.find(x => x.t === 'c');
     if (!a) return null;
     if (a.t === 'r') raises++;
+    path.push({ id: node.id, ai: node.acts.indexOf(a), p });
     node = tree.nodes[a.next];
   }
   return null;
@@ -53,11 +55,12 @@ function pickScenario(n, H) {
 }
 
 // favor hands near the edge of the range: those teach the most
-function pickClass(strat, node) {
+function pickClass(strat, node, reach) {
   const w = [];
   for (let c = 0; c < 169; c++) {
     const p = strategyAt(strat, node, c);
-    if (!p) { w.push(0); continue; }
+    // only hands you'd actually hold here (your earlier actions in the hand)
+    if (!p || reach[c] < 0.15) { w.push(0); continue; }
     const play = node.acts.reduce((s, a, i) => s + (a.t !== 'f' ? p[i] : 0), 0);
     const edge = 1 - Math.abs(2 * play - 1);
     const combos = c % 14 === 0 ? 6 : Math.floor(c / 13) > c % 13 ? 4 : 12;
@@ -89,12 +92,14 @@ export async function openDrills(ctx) {
   if (!S || !S.strat) { openPanel('Drills', '<p class="dim">No solution available offline yet; open a table once with signal.</p>'); return; }
 
   const next = () => {
-    let sc, cls, node;
+    let sc, cls, node, reach;
     for (let tries = 0; tries < 20; tries++) {
       const pick = pickScenario(n, H);
       node = walk(n, pick.sc);
       if (!node) continue;
-      sc = pick.sc; cls = pick.cls ?? pickClass(S.strat, node);
+      sc = pick.sc;
+      reach = reachAt(S.strat, n, node.path, sc.hero);
+      cls = pick.cls != null && reach[pick.cls] >= 0.15 ? pick.cls : pickClass(S.strat, node, reach);
       break;
     }
     if (!node) return;
@@ -125,9 +130,11 @@ export async function openDrills(ctx) {
       body.querySelectorAll('.drill-acts button').forEach((x, k) => { x.disabled = true; if (k === i) x.classList.add('chosen'); });
       const mix = node.acts.map((a, k) => `${labels[k]} ${Math.round(p[k] * 100)}%`).filter((_, k) => p[k] >= 0.01).join(' · ');
       body.querySelector('.drill-out').innerHTML = `<p><span class="grade ${gc}">${word}</span> ${className(cls)}: ${mix}</p>
-        ${gridHTML({ mixes: nodeMixes(S.strat, node), mark: cls })}
-        <button class="btn primary wide drill-next">Next drill</button>`;
-      body.querySelector('.drill-next').addEventListener('click', next);
+        ${gridHTML({ mixes: nodeMixes(S.strat, node), mark: cls, reach })}`;
+      const nb = document.createElement('div'); nb.className = 'drill-next-bar';
+      nb.innerHTML = '<button class="btn primary wide drill-next">Next drill</button>';
+      body.appendChild(nb);
+      nb.querySelector('.drill-next').addEventListener('click', next);
     });
   };
   next();

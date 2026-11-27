@@ -906,7 +906,7 @@ function logHeroDecision(sp, t, word, gcls) {
     try {
       const S = strategies[sp.n];
       const d = S && S.strat ? preflopDetail(game, heroI, S.strat) : null;
-      if (d) { rec.facts = d.facts; if (d.eq != null) rec.eq = d.eq; }
+      if (d) { rec.facts = d.facts; if (d.eq != null) rec.eq = d.eq; rec.path = d.path.map(x => ({ id: x.id, ai: x.ai, p: x.p })); }
     } catch (e) { /* explanations are best-effort */ }
   } else {
     rec.eq = sp.eqNum ?? null;
@@ -1007,7 +1007,7 @@ async function openCoachPanel() {
     const d = strat ? preflopDetail(game, heroI, strat) : null;
     if (!d) { html = '<p class="dim">No solution for this spot yet.</p>'; }
     else {
-      html += `<section><h4>Your range here</h4>${gridHTML({ mixes: d.mixes, mark: d.cls })}</section>`;
+      html += `<section><h4>Your range here</h4>${gridHTML({ mixes: d.mixes, mark: d.cls, reach: d.reach })}</section>`;
       html += `<section><h4>Why</h4>${factList(d.facts)}</section>`;
       if (cs.mix) html += `<section><h4>Solver mix for ${cs.hand}</h4>${mixRows(cs.mix, cs.pick?.label)}</section>`;
     }
@@ -1102,7 +1102,7 @@ function openReplay(h) {
       <div class="rstep-body">${mixRows(d.mix, d.pick)}
         ${d.need != null ? `<p class="dim small">Price ${pctTxt(d.need)}${d.eq != null ? ` · your equity ${pctTxt(d.eq)}` : ''}</p>` : ''}
         ${d.facts ? factList(d.facts) : ''}
-        ${grid ? gridHTML({ mixes: grid, mark: d.cls }) : ''}
+        ${grid ? gridHTML({ mixes: grid.mixes, mark: d.cls, reach: grid.reach }) : ''}
         ${d.quality !== 'exact' && d.quality !== 'solved' ? `<p class="dim small">Graded against an ${d.quality === 'estimate' ? 'estimate' : 'approximate solution'}.</p>` : ''}
       </div></div>`;
   }).join('') || '<p class="dim">No decisions logged for this hand.</p>';

@@ -1,6 +1,6 @@
 // Turns solver data and ranges into coaching: the "why" facts, range grids, where your
 // hand sits in your range, board reads, blockers. Everything is computed, nothing invented.
-import { mapSpot, treeFor, strategyAt, handClass, className } from './coach.js';
+import { mapSpot, treeFor, strategyAt, handClass, className, reachAt } from './coach.js';
 import { POSITIONS, STACK } from './preflop-tree.js';
 import { preflopRanges, toCombos, narrow, equityVsRanges, strengthTable, COMBOS } from './ranges.js';
 import { EQ_VS_RANDOM } from './strength.js';
@@ -57,16 +57,17 @@ export function preflopDetail(game, heroSeat, strat) {
   const hero = game.players[heroSeat];
   const cls = handClass(hero.cards);
   const mixes = nodeMixes(strat, m.node);
+  const reach = reachAt(strat, n0(game), m.path, m.node.p);
   const mine = mixes[cls] || [];
   const facts = [];
   const n = game.players.filter(p => !p.out).length;
   const pos = game.positions()[heroSeat];
   facts.push(`${pos} · ${situation(game, heroSeat)}.`);
-  const share = playShare(mixes);
+  const share = playShare(mixes.map((m, c) => (reach[c] >= 0.05 ? m : null)));
   facts.push(`From ${pos} here the solver plays ${pct(share)} of hands.`);
 
   // where this hand sits among the hands that play
-  const played = [...Array(169).keys()].filter(c => mixes[c] && mixes[c].filter(x => x.t !== 'f').reduce((s, x) => s + x.freq, 0) >= 0.5)
+  const played = [...Array(169).keys()].filter(c => reach[c] >= 0.05 && mixes[c] && mixes[c].filter(x => x.t !== 'f').reduce((s, x) => s + x.freq, 0) >= 0.5)
     .sort((a, b) => EQ_VS_RANDOM[b] - EQ_VS_RANDOM[a]);
   const name = className(cls);
   const k = played.indexOf(cls);
@@ -103,15 +104,18 @@ export function preflopDetail(game, heroSeat, strat) {
   if (m.quality === 'approx' && /limper/.test(m.why || '')) facts.push('The solved tree has no limps, so this grid is the open range with the limper treated as dead money; raise a bit bigger (+1 BB per limper).');
   const bl = blockerFact(hero.cards);
   if (bl) facts.push(bl);
-  return { node: m.node, n, mixes, cls, facts, quality: m.quality, why: m.why, pos, eq: eqOut, need: needOut };
+  if (reach[cls] < 0.05) facts.push(`The solver would almost never have ${className(cls)} here after your earlier action, so this spot has little data; treat the mix as rough.`);
+  return { node: m.node, n, mixes, cls, facts, quality: m.quality, why: m.why, pos, eq: eqOut, need: needOut, reach, path: m.path };
 }
+
+const n0 = (game) => game.players.filter(p => !p.out).length;
 
 // Rebuild a stored preflop decision's grid (for replays)
 export function storedPreflopGrid(strategies, rec) {
   const S = strategies[rec.n];
   if (!S || !S.strat || rec.nodeId == null) return null;
   const node = treeFor(rec.n).nodes[rec.nodeId];
-  return nodeMixes(S.strat, node);
+  return { mixes: nodeMixes(S.strat, node), reach: rec.path ? reachAt(S.strat, rec.n, rec.path, node.p) : null };
 }
 
 // ---------- postflop ----------

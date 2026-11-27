@@ -32,6 +32,7 @@ export function mapSpot(game) {
   const labels = game.positions();
   const posOf = (seat) => POSITIONS[n].indexOf(labels[seat]);
   let node = tree.nodes[0];
+  const path = []; // [{ id, ai, p }] for every action walked
   let quality = 'exact', why = '', limpers = 0;
   const soften = (w) => { if (quality === 'exact') { quality = 'approx'; why = w; } };
 
@@ -72,10 +73,11 @@ export function mapSpot(game) {
       const ratio = to / a.to;
       if (ratio < 0.6 || ratio > 1.6) soften(`${+to.toFixed(1)} BB raise`);
     }
+    path.push({ id: node.id, ai: node.acts.indexOf(a), p: node.p });
     node = tree.nodes[a.next];
   }
   if (node.term) return { quality: 'off', why: 'past the tree' + (why ? ' after ' + why : '') };
-  return { node, tree, pos: node.p, quality, why, limpers };
+  return { node, tree, pos: node.p, quality, why, limpers, path };
 }
 
 // Strategy table: { n, offsets: Int32Array per node into data, data: Uint8Array (0..255) }
@@ -107,4 +109,20 @@ export function decodeStrategy(n, bytes) {
   }
   if (off !== bytes.length) throw new Error(`strategy size ${bytes.length} != ${off}`);
   return { n, offsets, data: bytes };
+}
+
+// How likely each hand class is to be here for player p, given that player's own
+// earlier actions on the path (1 = always, 0 = never). Hands near 0 have no real data.
+export function reachAt(strat, n, path, p) {
+  const tree = treeFor(n);
+  const r = new Float32Array(169).fill(1);
+  for (const step of path) {
+    if (step.p !== p) continue;
+    const node = tree.nodes[step.id];
+    for (let c = 0; c < 169; c++) {
+      const probs = strategyAt(strat, node, c);
+      r[c] *= probs ? probs[step.ai] : 0;
+    }
+  }
+  return r;
 }
