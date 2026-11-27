@@ -227,8 +227,8 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 }
 .pos.sweep { animation: ripple .55s ease-out both; }
 @keyframes ripple {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(156, 195, 255, 0); }
-  35% { border-color: rgba(156, 195, 255, .75); box-shadow: 0 0 0 2px rgba(156, 195, 255, .16), 0 0 14px rgba(156, 195, 255, .35); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  35% { border-color: rgba(255, 255, 255, .85); box-shadow: 0 0 0 2px rgba(255, 255, 255, .14), 0 0 14px rgba(255, 255, 255, .38); }
 }
 /* the button: ripple out, land when it comes back around, then its normal pulse */
 .pos.btn-pos.sweep-btn { animation: ripple .55s ease-out var(--d0) both, land .8s ease-out var(--d1) both, btnPulse 2.8s ease-in-out var(--d2) infinite; }

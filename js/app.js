@@ -123,9 +123,9 @@ function winnersSet() {
 // ---------- position ripple ----------
 // Starts at the button, runs once clockwise around every seat (yours included), lands
 // back on the button, which then keeps its normal pulse. Fires at each new hand (your
-// position just changed) and every 15 s while a hand is in play; never on results.
+// position just changed) and every 6 s while a hand is in play; never on results.
 let sweepStart = -1e9, sweepOrder = new Map(), sweepN = 0;
-const SWEEP_STEP = 110, SWEEP_EVERY = 15000;
+const SWEEP_STEP = 110, SWEEP_EVERY = 6000;
 function startSweep() {
   const ps = game.players;
   const seated = (p) => !p.out;
