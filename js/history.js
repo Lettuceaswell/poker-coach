@@ -104,15 +104,34 @@ export function recordCalibration(lo, hi, truth) {
 }
 
 // ---------- drills ----------
+// Leitner-lite expanding intervals (Cepeda et al. 2006): a miss returns in 2-3 items (box 0);
+// each correct recall of a queued item moves it to a longer gap (box 1: ~10 items), then it graduates.
+// Items answered right the first time are not queued, so a miss always returns sooner than a correct spot.
+const GAPS = [[2, 3], [9, 11]];
+const gapFor = (box) => { const g = GAPS[Math.min(box, GAPS.length - 1)]; return g[0] + Math.floor(Math.random() * (g[1] - g[0] + 1)); };
 export function recordDrill(ok, item) {
-  db.drills.n++; if (ok) db.drills.good++;
-  if (!ok) db.drills.queue.push({ ...item, due: db.drills.n + 3 + Math.floor(Math.random() * 3) });
+  const d = db.drills;
+  d.n++; if (ok) d.good++;
+  d.recent = (d.recent || []).concat(ok ? 1 : 0).slice(-20);
+  if (!d.queue) d.queue = [];
+  const box = item.box || 0;
+  if (!ok) d.queue.push({ ...item, box: 0, due: d.n + gapFor(0) });
+  else if (item.review && box + 1 < GAPS.length) d.queue.push({ ...item, box: box + 1, due: d.n + gapFor(box + 1) });
   persist();
 }
 export function dueDrill() {
-  const i = db.drills.queue.findIndex(q => q.due <= db.drills.n);
-  if (i < 0) return null;
-  return db.drills.queue.splice(i, 1)[0];
+  const q = db.drills.queue || [];
+  let best = -1;
+  q.forEach((x, k) => { if (x.due <= db.drills.n && (best < 0 || x.due < q[best].due)) best = k; });
+  if (best < 0) return null;
+  const it = q.splice(best, 1)[0];
+  return { ...it, review: true };
+}
+// rolling accuracy over the last 20 answers (falls back to lifetime), or null with no history
+export function drillAccuracy() {
+  const d = db.drills;
+  if (d.recent && d.recent.length >= 5) return d.recent.reduce((s, x) => s + x, 0) / d.recent.length;
+  return d.n >= 5 ? d.good / d.n : null;
 }
 
 export function resetHistory() {
