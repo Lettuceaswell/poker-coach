@@ -8,9 +8,9 @@ import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const V1 = path.join(HERE, '..', 'app-score.js');
 const args = process.argv.slice(2);
 const opt = n => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
+const V1 = path.resolve(opt('--v1-script') || path.join(HERE, '..', 'app-score.js')); // --v1-script only for the veto-cap demonstration with a stub
 const ROOT = path.resolve(opt('--root') || path.join(HERE, '..', '..', '..'));
 const JSON_OUT = opt('--json'), ONLY = opt('--only'), NO_V1 = args.includes('--no-v1');
 const SEED = 20261127; const T0 = performance.now();
@@ -62,7 +62,7 @@ async function mod(name, cat) {
   if (!fs.existsSync(f)) { cats[cat] = { points: 0, max: MAX[cat], subs: [], observed: { missing: name + '.js not present: 0' } }; return; }
   let to; try {
     const m = await import(pathToFileURL(f).href);
-    const res = await Promise.race([m.run({ root: ROOT, seed: SEED }), new Promise((_, rej) => { to = setTimeout(() => rej(new Error('module timeout 200 s')), 200000); })]);
+    const res = await Promise.race([m.run({ root: ROOT, seed: SEED }), new Promise((_, rej) => { to = setTimeout(() => rej(new Error('module timeout 85 s')), 85000); })]);
     cats[cat] = { points: r2(res.points), max: MAX[cat], subs: res.subs || [], observed: res.notes || res.observed || {}, wall_s: r2((performance.now() - t) / 1000) };
   } catch (e) { cats[cat] = { points: 0, max: MAX[cat], subs: [], observed: { error: String(e?.stack || e).slice(0, 400) } }; } finally { clearTimeout(to); }
 }
