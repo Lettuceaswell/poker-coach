@@ -8,7 +8,7 @@ const b = await chromium.launch({ executablePath: '/usr/bin/chromium' });
 const p = await (await b.newContext({ viewport: { width: 393, height: 852 } })).newPage();
 const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
 await p.goto('http://127.0.0.1:8774/'); await p.evaluate(() => localStorage.clear()); await p.reload();
-await p.evaluate(() => { window.__poker.settings.speed = 'fast'; });
+await p.evaluate(() => { window.__poker.settings.speed = 'fast'; window.__poker.settings.seats = 3; });
 await p.click('#modeCash');
 const shot = (n) => p.screenshot({ path: `shots/c-${n}.png` });
 const got = {};
@@ -38,9 +38,10 @@ for (let k = 0; k < 500 && Object.keys(got).length < 6; k++) {
   if (st === 'preflop' && !got.pre && await p.$('.why-btn')) {
     await p.click('.why-btn'); await p.waitForTimeout(500); await shot('coach-pre'); got.pre = 1;
     await p.click('#panelClose'); await p.waitForTimeout(350);
-  } else if (st !== 'preflop' && !got.post && await p.$('.why-btn')) {
-    await p.waitForTimeout(2500);
-    await p.click('.why-btn'); await p.waitForTimeout(1500); await shot('coach-post'); got.post = 1;
+  } else if (st !== 'preflop' && !got.post && await p.$('.why-btn') && await p.evaluate(() => window.__poker.game().players.filter(x => !x.folded).length === 2)) {
+    await p.waitForTimeout(4000);
+    await p.click('.why-btn'); await p.waitForTimeout(300); await shot('coach-post-quick');
+    await p.waitForTimeout(3000); await shot('coach-post'); got.post = 1;
     await p.click('#panelClose'); await p.waitForTimeout(350);
   } else if (!got.peek) {
     const seat = await p.$('.seat:not(.folded)');

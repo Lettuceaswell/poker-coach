@@ -25,12 +25,16 @@ export function beginHand(game) {
 export function logDecision(rec) {
   if (!cur) return;
   cur.decisions.push(rec);
-  // leaks: only clear mistakes on exact/solved spots count
-  if (rec.leak) {
-    const L = db.leaks[rec.leak.key] || { key: rec.leak.key, label: rec.leak.label, n: 0, cost: 0, ev: 0, last: 0 };
-    L.n++; L.cost += rec.leak.cost; if (rec.leak.ev) L.ev += rec.leak.ev; L.last = Date.now();
-    db.leaks[rec.leak.key] = L;
-  }
+  addLeak(rec.leak);
+}
+
+// leaks: only clear mistakes on exact/solved spots count
+export function addLeak(leak) {
+  if (!leak) return;
+  const L = db.leaks[leak.key] || { key: leak.key, label: leak.label, n: 0, cost: 0, ev: 0, last: 0 };
+  L.n++; L.cost += leak.cost; if (leak.ev) L.ev += leak.ev; L.last = Date.now();
+  db.leaks[leak.key] = L;
+  persist();
 }
 
 export function endHand(game) {

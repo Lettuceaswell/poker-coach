@@ -48,6 +48,11 @@
 //  * sampleChance: K (optional, off by default) samples K representative
 //    cards per iteration at the first chance level instead of all of them.
 //
+// Action values
+//  * actionValues(path, combo) gives the EV (BB) of each action for one hand
+//    against the opponent's reach at that node, by default relative to
+//    folding now (sunk chips excluded); see actionValues for the convention.
+//
 // Suit isomorphism
 //  * If a suit permutation maps the board onto itself and leaves both input
 //    ranges unchanged, chance cards in one orbit share a single subtree, and

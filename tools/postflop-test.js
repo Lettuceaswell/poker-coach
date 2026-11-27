@@ -12,7 +12,12 @@
 //     no strategy everywhere.
 //  i. Suit isomorphism matches the brute-force solve (turn), and keeps the
 //     depth-limited flop exactly symmetric.
-//  w. Worker handler: updates, stop, done.
+//  v. actionValues: sum_a sigma_a * values_a equals an independent full-node
+//     pass on river, turn and depth-limited flop nodes (incl. dealt cards,
+//     non-representative suits, the flop all-in runout); root values average
+//     to evs(); a street-closing action equals the card-removal-weighted
+//     average of the next street's values; fold is exactly 0.
+//  w. Worker handler: updates, stop, done, detail (live, finished, unknown).
 //  e. Timing / memory report: river, turn, depth-limited flop, ~40% ranges.
 //     Targets are reported as MET / MISS; they do not fail the run.
 

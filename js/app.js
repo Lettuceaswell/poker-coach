@@ -912,6 +912,19 @@ function logHeroDecision(sp, t, word, gcls) {
     rec.eq = sp.eqNum ?? null;
     rec.values = sp.values || null;
   }
+  if (!pre && sp.solved && sp.live) {
+    // price the decision with the solver's option values, then classify the leak
+    H.logDecision(rec);
+    pf.detail(game, heroI).then(d => {
+      if (d && d.values) {
+        rec.values = Array.from(d.values);
+        // align values to the coach mix (same action order as the solver)
+        rec.leak = H.leakOf(rec);
+        H.addLeak(rec.leak);
+      }
+    }).catch(() => {});
+    return;
+  }
   rec.leak = H.leakOf(rec);
   H.logDecision(rec);
 }
@@ -999,8 +1012,30 @@ async function openCoachPanel() {
       if (cs.mix) html += `<section><h4>Solver mix for ${cs.hand}</h4>${mixRows(cs.mix, cs.pick?.label)}</section>`;
     }
   } else {
-    const solved = cs.live ? await pf.detail(game, heroI).catch(() => null) : null;
-    const d = postflopDetail(game, heroI, strat, solved);
+    const token = {};
+    coachToken = token;
+    const build = (solved) => postflopPanelHTML(postflopDetail(game, heroI, strat, solved), solved, !solved && cs.live);
+    openPanel(`${cs.pos} · ${cs.hand}`, build(null) + oppsHTML());
+    if (cs.live) {
+      const solved = await pf.detail(game, heroI).catch(() => null);
+      if (coachToken === token && $('panel').classList.contains('on') && solved) $('panelBody').innerHTML = build(solved) + oppsHTML();
+      else if (coachToken === token && $('panel').classList.contains('on')) { const w = $('panelBody').querySelector('.solver-wait'); if (w) w.remove(); }
+    }
+    return;
+  }
+  html += oppsHTML();
+  openPanel(`${cs.pos} · ${cs.hand}`, html);
+}
+
+let coachToken = null;
+function oppsHTML() {
+  const opps = game.players.map((p, i) => ({ p, i })).filter(({ p }) => !p.isHero && !p.folded && !p.out);
+  return opps.length ? `<section><h4>Opponents</h4><div class="peeks">${opps.map(({ p, i }) => `<button data-peek="${i}">${game.positions()[i]} · ${p.name}</button>`).join('')}</div></section>` : '';
+}
+
+function postflopPanelHTML(d, solved, waiting) {
+  let html = '';
+  {
     html += `<section><h4>Why</h4>${factList(d.facts)}</section>`;
     if (d.rankInRange != null) {
       html += `<section><h4>Where your hand sits</h4><div class="sitbar"><i style="left:${Math.round(d.rankInRange * 100)}%"></i></div><div class="sitlabels"><span>bottom of your range</span><span>top</span></div>`;
@@ -1024,11 +1059,9 @@ async function openCoachPanel() {
         return `<div class="${solved.values[i] === best ? 'best' : ''}"><span>${lbl}</span><b>${bbTxt(solved.values[i])} BB</b></div>`; }).join('')}</div><p class="dim small">Expected value of each option with your exact hand, from the live solve.</p></section>`;
     }
     if (cs.mix) html += `<section><h4>Coach mix</h4>${mixRows(cs.mix, cs.pick?.label)}</section>`;
+    if (waiting) html += '<p class="dim small solver-wait">Reading the solver for option values and your range…</p>';
   }
-  // opponents still in: tap to peek
-  const opps = game.players.map((p, i) => ({ p, i })).filter(({ p }) => !p.isHero && !p.folded && !p.out);
-  if (opps.length) html += `<section><h4>Opponents</h4><div class="peeks">${opps.map(({ p, i }) => `<button data-peek="${i}">${game.positions()[i]} · ${p.name}</button>`).join('')}</div></section>`;
-  openPanel(`${cs.pos} · ${cs.hand}`, html);
+  return html;
 }
 
 async function openVillain(seat) {
