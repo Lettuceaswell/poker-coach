@@ -131,7 +131,7 @@ function winnersSet() {
 // included). New hand: 3 laps; then every ~6 s after it finishes: 2 laps. Each run
 // lands back on the button, which then keeps its normal pulse. Never on results.
 let sweepStart = -1e9, sweepOrder = new Map(), sweepN = 0, sweepLaps = 3;
-const SWEEP_STEP = 100, SWEEP_GAP = 5000, SWEEP_HOLD = 650, SWEEP_FADE = 250, SWEEP_REST = 0;
+const SWEEP_STEP = 100, SWEEP_GAP = 5000, SWEEP_HOLD = 650, SWEEP_FADE = 250, SWEEP_REST = 0, SWEEP_LEAD = 300;
 function startSweep(laps = 3) {
   const ps = game.players;
   const seated = (p) => !p.out;
@@ -148,10 +148,10 @@ function startSweep(laps = 3) {
   applySweep();
 }
 // one lap: each seat lights in turn and STAYS lit, all lit together for SWEEP_HOLD, then all fade
-const lapMs = () => sweepN * SWEEP_STEP + SWEEP_HOLD + SWEEP_FADE + SWEEP_REST;
+const lapMs = () => SWEEP_LEAD + sweepN * SWEEP_STEP + SWEEP_HOLD + SWEEP_FADE + SWEEP_REST;
 const sweepTotal = () => sweepLaps * lapMs();
 function sweepKeyframes(i) {
-  const L = lapMs(), on = sweepOrder.get(i) * SWEEP_STEP, end = sweepN * SWEEP_STEP + SWEEP_HOLD;
+  const L = lapMs(), on = SWEEP_LEAD + sweepOrder.get(i) * SWEEP_STEP, end = SWEEP_LEAD + sweepN * SWEEP_STEP + SWEEP_HOLD;
   const isBtn = i === game.button;
   const off = isBtn ? { boxShadow: '0 0 8px rgba(255,255,255,.18)' } : { borderColor: 'rgba(255,255,255,.18)', boxShadow: '0 0 0 0 rgba(255,255,255,0)' };
   const lit = isBtn ? { boxShadow: '0 0 0 4px rgba(255,255,255,.22), 0 0 24px rgba(255,255,255,.7)' }
