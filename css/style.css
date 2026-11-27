@@ -37,7 +37,7 @@ button { font-family: inherit; color: inherit; background: none; border: 0; padd
 #seats { position: relative; flex: 1 1 auto; min-height: 230px; }
 .seat { position: absolute; width: 92px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; transition: opacity .3s; }
 .seat.folded { opacity: 1; }
-.seat.folded > :not(.bet-chip) { opacity: .38; }
+.seat.folded > :not(.bet-chip) { opacity: .72; }
 .seat.out { opacity: .15; }
 .timer { width: 24px; height: 24px; border-radius: 50%; margin-bottom: 8px; visibility: hidden;
   background: conic-gradient(var(--go) calc(var(--p, 0) * 1turn), #1d1d1f 0); }
@@ -346,7 +346,7 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 
 /* range grid */
 .hgrid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 2px; }
-.hgrid i { position: relative; aspect-ratio: 1; border-radius: 3px; font-style: normal; font-size: clamp(7px, 2.2vw, 10px); font-weight: 600;
+.hgrid i { position: relative; aspect-ratio: 1; border-radius: 3px; font-style: normal; font-size: 13px; font-weight: 600;
   color: rgba(255, 255, 255, .85); display: grid; place-items: center; letter-spacing: -.03em; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
 .hgrid i.mark { outline: 2.5px solid #fff; outline-offset: 1px; z-index: 1; box-shadow: 0 0 14px rgba(255, 255, 255, .6); }
 .grid-legend { display: flex; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--dim); }
@@ -471,3 +471,25 @@ body.four .ct.s-2 { color: var(--blue); } body.four .ct.s-3 { color: var(--green
 .pg-best { margin-top: 6px; color: #d4af37; font-weight: 700; font-size: 13px; }
 .pg-mini { margin-top: 14px; font-size: 13px; color: #aaa; }
 .pg-mini:empty { display: none; }
+
+/* ===== legibility audit (x-legib-audit): 13 px floor, AA contrast, 44 px taps ===== */
+.hgrid i { letter-spacing: -.06em; padding: 0; overflow: visible; }
+.last, .grade, .why-btn, .panel-body h4, .small, .grid-legend, .sitlabels, .tier, .tags span, .meter-text, .coach em, .hero-cards .hint,
+.pot small, .raise-amt small, .btn small, .hrow .hpos { font-size: 13px !important; }
+.grade { padding: 2px 8px; }
+.last.fold { color: #a8a8ae; }
+.pot small, .raise-amt small { font-size: 13px !important; }
+.unit-btn { height: 44px; min-height: 44px; }
+.quick button, .presets button, .seg button, .small-btn, .hrow, .why-btn { min-height: 44px; }
+.quick button { height: 44px; }
+.presets button { height: 44px; }
+.seg button { height: 44px; min-width: 44px; }
+.small-btn { height: 44px; }
+.hrow { min-height: 44px; }
+.why-btn { height: 44px; margin-left: 2px; }
+.orbit-head { min-height: 44px; }
+
+small { font-size: 13px !important; }
+.quick { flex-wrap: wrap; height: 44px; overflow: hidden; -webkit-mask-image: none; mask-image: none; gap: 6px; padding: 0; align-content: flex-start; }
+.quick button:last-child { margin-right: 0; }
+.quick button { padding: 0 11px; min-width: 44px; }
