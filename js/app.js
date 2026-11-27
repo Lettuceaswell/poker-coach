@@ -120,26 +120,57 @@ function winnersSet() {
   return m;
 }
 
-// ---------- position sweep: highlights seats in acting order at each street start ----------
-let sweepStart = -1e9, sweepOrder = new Map();
-const SWEEP_STEP = 150;
+// ---------- position ripple ----------
+// Starts at the button, runs once clockwise around every seat (yours included), lands
+// back on the button, which then keeps its normal pulse. Fires at each new hand (your
+// position just changed) and every 15 s while a hand is in play; never on results.
+let sweepStart = -1e9, sweepOrder = new Map(), sweepN = 0;
+const SWEEP_STEP = 110, SWEEP_EVERY = 15000;
 function startSweep() {
-  const live = (p) => !p.folded && !p.out;
   const ps = game.players;
-  const first = game.street === 'preflop' ? game.next(game.bbI, live) : game.next(game.button, live);
+  const seated = (p) => !p.out;
   sweepOrder = new Map();
-  let i = first;
+  let i = game.button;
   for (let k = 0; k < ps.length && i >= 0; k++) {
     if (sweepOrder.has(i)) break;
     sweepOrder.set(i, k);
-    i = game.next(i, live);
+    i = game.next(i, seated);
   }
+  sweepN = sweepOrder.size;
   sweepStart = performance.now();
+  applySweep();
 }
-function sweepActive(i) { return sweepOrder.has(i) && performance.now() - sweepStart < sweepOrder.size * SWEEP_STEP + 700; }
-function sweepDelay(i) { return sweepActive(i) ? `${Math.round(sweepOrder.get(i) * SWEEP_STEP - (performance.now() - sweepStart))}ms` : ''; }
-function sweepClass(i) { return sweepActive(i) ? ' sweep' : ''; }
-function sweepStyle(i) { return sweepActive(i) ? ` sweep" style="animation-delay:${sweepDelay(i)}` : ''; }
+const sweepTotal = () => (sweepN + 1) * SWEEP_STEP + 900;
+function sweepActive(i) { return sweepOrder.has(i) && performance.now() - sweepStart < sweepTotal(); }
+// classes + inline delays for one position circle; negative delays keep a re-render mid-ripple in sync
+function sweepAttrs(i) {
+  if (!sweepActive(i)) return { cls: '', style: '' };
+  const t = performance.now() - sweepStart;
+  const d0 = Math.round(sweepOrder.get(i) * SWEEP_STEP - t);
+  if (i === game.button) {
+    const d1 = Math.round(sweepN * SWEEP_STEP - t);
+    return { cls: ' sweep-btn', style: `--d0:${d0}ms;--d1:${d1}ms;--d2:${d1 + 700}ms` };
+  }
+  return { cls: ' sweep', style: `animation-delay:${d0}ms` };
+}
+function sweepStyle(i) { const a = sweepAttrs(i); return a.cls ? `${a.cls}" style="${a.style}` : ''; }
+function sweepClass(i) { return sweepAttrs(i).cls; }
+function sweepDelay(i) { return sweepAttrs(i).style; }
+// apply to the circles already on screen without rebuilding anything
+function applySweep() {
+  const heroI = game.players.findIndex(p => p.isHero);
+  const els = [...document.querySelectorAll('#seats .seat')].map(el => [+el.id.slice(5), el.querySelector('.pos')]);
+  els.push([heroI, $('heroPos')]);
+  for (const [i, el] of els) {
+    if (!el) continue;
+    el.classList.remove('sweep', 'sweep-btn');
+    void el.offsetWidth; // restart the animation
+    const a = sweepAttrs(i);
+    el.style.cssText = a.style;
+    if (a.cls) el.classList.add(a.cls.trim());
+  }
+}
+setInterval(() => { if (!paused && game && !game.handOver && performance.now() - sweepStart > SWEEP_EVERY - 50) startSweep(); }, 1000);
 
 // ---------- the winning five cards ----------
 let winCards = new Set();
@@ -245,7 +276,7 @@ function render() {
   $('heroBet').textContent = h.bet ? num(h.bet) : '';
   $('heroPos').textContent = pos[heroI];
   $('heroPos').className = 'pos hero-pos' + (pos[heroI] === 'BTN' ? ' btn-pos' : '') + sweepClass(heroI);
-  $('heroPos').style.animationDelay = sweepDelay(heroI);
+  $('heroPos').style.cssText = sweepDelay(heroI);
   $('heroBox').classList.toggle('turn', heroTurn);
   $('heroStack').textContent = num(h.stack);
   $('heroHand').textContent = h.cards.length ? describe([...h.cards, ...(h.folded ? [] : b)]) : '';
@@ -651,7 +682,6 @@ async function loop() {
       if (game.handOver && !hero().folded) { await sleep(260); potToWinners(); }
       if (game.street !== street && !game.handOver) {
         street = game.street;
-        startSweep();
         render();
         await sleep(settings.speed === 'fast' ? 300 : 600);
       } else render();
