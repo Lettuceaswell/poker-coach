@@ -1,0 +1,16 @@
+# Legibility & visual (20) — points formulas (VAL-GAUGE-003)
+
+Module: `tools/score/v2/legibility.js`. Phone Chromium (mobile+touch), ephemeral-port static server, Math.random seeded per hand.
+Everything is observed from DOM geometry / computed style after real taps; no app source is read. `page.evaluate` only reads DOM/style/text and seeds the app's saved settings (seat count) in localStorage.
+Sampling: 32 hands = 4 hands x seat counts 3,4,5,6 x viewports 390x844 and 360x740 (8 combos run in parallel). Content-text exemptions: `fixtures/legibility-exempt.json` (sha reported in JSON; base list is empty).
+
+| sub-score | max | formula |
+|---|---|---|
+| (a) bet-chip overlap | 4 | `min(1, chips/30) * (1 - min(1, violations/chips))`. Chips polled every ~100 ms at each hero turn and after each opponent action; a violation must persist >= 2 consecutive polls (filters animation frames). Violations: seat with a committed bet (SB/BB preflop, or a Call/Raise/Bet action label, from displayed text) and no chip; chip hidden, no digit, < 16 px, effective opacity < 0.9, outside viewport, not topmost at its centre (`elementFromPoint`), or intersecting any hole/board/mini card, seat position/name/stack label, hero label, or another chip. |
+| (b) position highlight | 4 | Sampler in the page reads each seat's position circle computed style every 50 ms from the new-hand deal. Lit = border brightness >= 100 (rest ~47) or glow alpha >= 0.5; the button seat uses glow alpha >= 0.5 only. Six properties, each = combos passing / 8: (1) first lap lights seats one at a time in clockwise (ascending seat index mod n) order starting at the button or the seat after it; (2) a lit seat stays lit until the lap completes (until the last seat lights); (3) all seats lit at once at lap end; (4) 3 laps on a new hand (median lit-episode count of non-button seats); (5) afterwards only the button is lit (non-button seats unlit, button has bright fill); (6) the later run (~6 s after) shows 2 laps and then button-only. Score = mean of the six. Unmeasured combos count as failures. Hero waits ~13 s on hand 1 of each combo so the later run is observed. |
+| (c) min font size | 3 | `(0.5*(1-min(1,V/5)) + 0.5*(1-min(1,V/max(5,0.2*N)))) * covered/10`, V = unique violating items, N = text nodes checked, covered = named screens measured of 10. Content text < 13 px (exempt list aside). |
+| (d) WCAG AA contrast | 3 | same formula; ratio of text colour (with effective opacity) vs the composited ancestor backgrounds; need 4.5:1 (3:1 if >= 24 px or >= 18.66 px bold). Gradients / images are ignored (documented limit). |
+| (e) tap targets | 3 | same formula with N = visible topmost controls checked; width or height < 43.5 px is a violation. |
+| (f) clipping | 3 | same formula; text box extending > 1.5 px beyond an overflow-hidden/clip ancestor, an ellipsised box, or the viewport horizontally. |
+
+Named screens (10): menu, table at hero turn, result, drill question, drill answer, orbit review, Hands, Leaks, Progress, Settings. Plus a generic crawl of every `button, [role=button], a[href]` in `#menu` (depth 1) and in the opened `#panel` (depth 2, first 6 controls) so later screens are measured. Text covered by an overlay (not topmost at its centre) is skipped.

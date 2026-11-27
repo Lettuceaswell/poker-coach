@@ -1,0 +1,4 @@
+{
+  "_doc": "Frozen exemption list for legibility font-size check (content text >= 13 px). Only selectors listed here are exempt from the min-font check; contrast, tap-target and clipping checks have no exemptions. Keep this list as short as possible.",
+  "font": []
+}
