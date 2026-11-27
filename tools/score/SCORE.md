@@ -31,3 +31,16 @@ The base app uses `--go` green for `#panel .up` (positive BB), `#panel .dot.g` a
 ## Broken-copy detection (tested in /tmp, VAL-SCORE-014/015)
 - (a) `.btn[data-a=fold|call]` green: veto `green-non-pick` fires, rules 12 -> 9, learning unchanged (22.22).
 - (b) `recordDrill` never queues misses (js/history.js ~109): spaced repetition 4.44 -> 0; learning 22.22 -> 17.78, nothing else moves.
+
+## Baseline (3 sequential runs, commit 4b145be, seed 20261127)
+
+| Category | Run 1 | Run 2 | Run 3 | Spread |
+|---|---|---|---|---|
+| accuracy (max 30) | 16.44 | 16.43 | 16.42 | 0.02 |
+| speed (max 15) | 8.06 | 8.03 | 7.96 | 0.10 |
+| learning (max 40) | 22.22 | 22.22 | 22.22 | 0.00 |
+| rules (max 15) | 15.00 | 15.00 | 13.88 | 1.12 |
+| **TOTAL** | 61.72 | 61.68 | 40.00 | 21.72 |
+| wall s | 141.22 | 140.69 | 140.63 | |
+
+Run 3 hit a veto `test-failure`: `node tools/shoot.js` timed out in `waitTurn` (30 s, unseeded app-side test, flaky; passed in runs 1-2 and in a standalone rerun) so the total was capped at 40. Excluding that flake, total spread is 0.04 (runs 1-2) so **MDE = max(2 x 0.04, 1.0) = 1.00**. Taken literally with the outlier, MDE = 43.44, which is meaningless; treat 1.00 as the working MDE, and re-run any candidate that shows a `test-failure` veto before judging it. Non-veto noise: speed spread 0.10, accuracy 0.02, learning 0.00. Vetoes: 0,0,1 (shoot flake). Each run ~142 s wall (< 200 s budget, no reduction needed).
