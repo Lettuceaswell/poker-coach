@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "preflop": {
+    "file": "data/preflop-6.bin",
+    "falloff_pp": 8,
+    "spots": {
+      "UTG": { "lo": 15.5, "hi": 18.5, "ref": "17", "pts": 2 },
+      "HJ": { "lo": 20.5, "hi": 23.5, "ref": "22", "pts": 2 },
+      "CO": { "lo": 26.5, "hi": 29.5, "ref": "28", "pts": 2 },
+      "BTN": { "lo": 40, "hi": 44, "ref": "~42", "pts": 2 },
+      "SB_raise": { "lo": 40, "hi": 48, "ref": "~44", "pts": 2.5 },
+      "SB_limp": { "lo": 0, "hi": 3, "ref": "~0", "pts": 2.5 },
+      "BB_defend": { "lo": 45, "hi": 60, "ref": "45-60", "pts": 2 }
+    },
+    "logmd_current": { "UTG": 15.0, "HJ": 19.3, "CO": 26.6, "BTN": 46.3, "SB_raise": 6, "SB_limp": 56, "BB_defend": 62.3 }
+  },
+  "postflop_accuracy": {
+    "pts_per_spot": 3,
+    "budget_ms": { "river": 250, "turn": 1200 },
+    "curve": { "full_at_pct": 0.003, "zero_at_pct": 3, "note": "log-linear between; points = pts * clamp(1 - log10(e/full)/log10(zero/full))" }
+  },
+  "speed": {
+    "pts_per_spot": 7.5,
+    "repeats": 3,
+    "curve": "pts = pts_per_spot * clamp(0.5 + log2(baseline_ms/median_ms)/4, 0, 1); timeout = 0",
+    "spots": {
+      "turn": { "fixture": "T1 AJ7s-4", "street": "turn", "target_pct": 0.25, "chunk": 4, "timeout_ms": 20000, "baseline_ms": 1520 },
+      "flop": { "fixture": "F1 K96", "street": "flop", "target_pct": 3, "chunk": 4, "timeout_ms": 30000, "baseline_ms": 3400 }
+    }
+  },
+  "rules": { "tests_pts": 9, "browser_pts": 6, "veto_cap": 40 }
+}
