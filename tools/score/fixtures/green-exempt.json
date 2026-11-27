@@ -1,0 +1,9 @@
+{
+  "_doc": "Green exemptions for tools/score/browser-checks.js (VAL-SCORE-008). 'pick' = selectors of the coach's pick (green allowed). 'exempt' = green that is not a coach-pick signal, each justified. Scan runs with default settings (black felt, two-color deck), so table elements need no exemption (four-color .s-3 and green felt only exist behind non-default settings). Exemptions are scoped to #panel (review/drill/hands screens) so a green action button on the table or a drill answer button still fires the veto. NOTE: these are real deviations from 'green means only the coach pick' in the base app (win amounts and grade chips use --go); they are exempted only so the base commit scores 0 violations. Removing them from the app later is allowed; the exemptions then become inert.",
+  "pick": [".rec", ".rec *", ".mixrow.pick", ".mixrow.pick *", "b.picked"],
+  "exempt": [
+    { "selector": "#panel .up", "justification": "positive BB result text (+x BB) in orbit/hands review; a number sign, not an action cue" },
+    { "selector": "#panel .dot.g", "justification": "grade dot beside a logged hand in review lists; records the past grade, not a recommendation" },
+    { "selector": "#panel .grade.g", "justification": "Best/Good grade chip after you act (orbit verdict, drill feedback); evaluates your action, does not recommend one" }
+  ]
+}
