@@ -131,7 +131,7 @@ function winnersSet() {
 // included). New hand: 3 laps; then every ~6 s after it finishes: 2 laps. Each run
 // lands back on the button, which then keeps its normal pulse. Never on results.
 let sweepStart = -1e9, sweepOrder = new Map(), sweepN = 0, sweepLaps = 3;
-const SWEEP_STEP = 140, SWEEP_GAP = 6000;
+const SWEEP_STEP = 100, SWEEP_GAP = 5000, SWEEP_HOLD = 650, SWEEP_FADE = 250, SWEEP_REST = 0;
 function startSweep(laps = 3) {
   const ps = game.players;
   const seated = (p) => !p.out;
@@ -147,36 +147,31 @@ function startSweep(laps = 3) {
   sweepStart = performance.now();
   applySweep();
 }
-const lapMs = () => sweepN * SWEEP_STEP;
-const sweepTotal = () => sweepLaps * lapMs() + 900;
-function sweepActive(i) { return sweepOrder.has(i) && performance.now() - sweepStart < sweepTotal(); }
-// inline timing for one circle; negative delays keep a re-render mid-ripple in sync
-function sweepAttrs(i) {
-  if (!sweepActive(i)) return { cls: '', style: '' };
-  const t = performance.now() - sweepStart;
-  const d0 = Math.round(sweepOrder.get(i) * SWEEP_STEP - t);
-  const base = `--lap:${lapMs()}ms;--laps:${sweepLaps};`;
-  if (i === game.button) {
-    const d1 = Math.round(sweepLaps * lapMs() - t);
-    return { cls: ' sweep-btn', style: `${base}--d0:${d0}ms;--d1:${d1}ms;--d2:${d1 + 750}ms` };
-  }
-  return { cls: ' sweep', style: `${base}animation-delay:${d0}ms` };
+// one lap: each seat lights in turn and STAYS lit, all lit together for SWEEP_HOLD, then all fade
+const lapMs = () => sweepN * SWEEP_STEP + SWEEP_HOLD + SWEEP_FADE + SWEEP_REST;
+const sweepTotal = () => sweepLaps * lapMs();
+function sweepKeyframes(i) {
+  const L = lapMs(), on = sweepOrder.get(i) * SWEEP_STEP, end = sweepN * SWEEP_STEP + SWEEP_HOLD;
+  const isBtn = i === game.button;
+  const off = isBtn ? { boxShadow: '0 0 8px rgba(255,255,255,.18)' } : { borderColor: 'rgba(255,255,255,.18)', boxShadow: '0 0 0 0 rgba(255,255,255,0)' };
+  const lit = isBtn ? { boxShadow: '0 0 0 4px rgba(255,255,255,.22), 0 0 24px rgba(255,255,255,.7)' }
+    : { borderColor: 'rgba(255,255,255,.95)', boxShadow: '0 0 0 3px rgba(255,255,255,.2), 0 0 20px rgba(255,255,255,.6)' };
+  const f = (t, st) => ({ offset: Math.min(1, t / L), ...st });
+  return [f(0, off), f(on, off), f(on + 100, lit), f(end, lit), f(end + SWEEP_FADE, off), f(L, off)];
 }
-function sweepStyle(i) { const a = sweepAttrs(i); return a.cls ? `${a.cls}" style="${a.style}` : ''; }
-function sweepClass(i) { return sweepAttrs(i).cls; }
-function sweepDelay(i) { return sweepAttrs(i).style; }
-// apply to the circles already on screen without rebuilding anything
+// (re)start the animations on the circles now on screen, in sync with the ripple clock
 function applySweep() {
   const heroI = game.players.findIndex(p => p.isHero);
   const els = [...document.querySelectorAll('#seats .seat')].map(el => [+el.id.slice(5), el.querySelector('.pos')]);
   els.push([heroI, $('heroPos')]);
+  const t = performance.now() - sweepStart;
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
   for (const [i, el] of els) {
-    if (!el) continue;
-    el.classList.remove('sweep', 'sweep-btn');
-    void el.offsetWidth; // restart the animation
-    const a = sweepAttrs(i);
-    el.style.cssText = a.style;
-    if (a.cls) el.classList.add(a.cls.trim());
+    if (!el || !el.animate) continue;
+    el.getAnimations().forEach(a => { if (a.id === 'sweep') a.cancel(); });
+    if (calm || !sweepOrder.has(i) || t >= sweepTotal()) continue;
+    const a = el.animate(sweepKeyframes(i), { duration: lapMs(), iterations: sweepLaps, id: 'sweep', easing: 'linear' });
+    a.currentTime = t;
   }
 }
 setInterval(() => {
@@ -251,7 +246,7 @@ function render() {
     const below = w ? `<span class="bet-chip won">+${num(w.amount)}</span>` : `<span class="bet-chip">${p.bet ? num(p.bet) : ''}</span>`;
     const dx = Math.round(Math.sign(50 - x) * Math.min(26, Math.abs(50 - x) * 0.7));
     return `<div class="${cls}" id="seat-${i}" style="left:${x}%;top:${y}%;--dx:${dx}px">
-      <div class="ava-wrap"><div class="pos ${pos[i] === 'BTN' ? 'btn-pos' : ''}${sweepStyle(i)}">${pos[i]}</div>
+      <div class="ava-wrap"><div class="pos ${pos[i] === 'BTN' ? 'btn-pos' : ''}">${pos[i]}</div>
         <div class="timer"></div>${mini}</div>
       ${label}
       <span class="stk">${num(p.stack)}</span>
@@ -287,14 +282,14 @@ function render() {
   const h = hero();
   $('heroBet').textContent = h.bet ? num(h.bet) : '';
   $('heroPos').textContent = pos[heroI];
-  $('heroPos').className = 'pos hero-pos' + (pos[heroI] === 'BTN' ? ' btn-pos' : '') + sweepClass(heroI);
-  $('heroPos').style.cssText = sweepDelay(heroI);
+  $('heroPos').className = 'pos hero-pos' + (pos[heroI] === 'BTN' ? ' btn-pos' : '');
   $('heroBox').classList.toggle('turn', heroTurn);
   $('heroStack').textContent = num(h.stack);
   $('heroHand').textContent = h.cards.length ? describe([...h.cards, ...(h.folded ? [] : b)]) : '';
   $('heroBox').classList.toggle('winner', wins.has(heroI));
   renderHeroCards(h);
   renderActions();
+  applySweep();
 }
 
 function renderHeroCards(h) {

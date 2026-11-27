@@ -36,7 +36,8 @@ button { font-family: inherit; color: inherit; background: none; border: 0; padd
 /* opponents */
 #seats { position: relative; flex: 1 1 auto; min-height: 230px; }
 .seat { position: absolute; width: 92px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; transition: opacity .3s; }
-.seat.folded { opacity: .38; }
+.seat.folded { opacity: 1; }
+.seat.folded > :not(.bet-chip) { opacity: .38; }
 .seat.out { opacity: .15; }
 .timer { width: 24px; height: 24px; border-radius: 50%; margin-bottom: 8px; visibility: hidden;
   background: conic-gradient(var(--go) calc(var(--p, 0) * 1turn), #1d1d1f 0); }
@@ -162,7 +163,7 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
   font-size: 16px; font-weight: 700; letter-spacing: .04em; color: #e8e8ea; transition: box-shadow .3s, border-color .3s; }
 .pos.btn-pos { background: #f2f2f2; color: #000; border-color: #f2f2f2; }
 .seat.winner .pos { box-shadow: 0 0 0 3px var(--win), 0 0 24px rgba(245, 200, 74, .45); }
-.seat.acting .pos { border-color: rgba(255, 255, 255, .5); }
+.seat.acting .pos { border-color: rgba(255, 255, 255, .36); }
 .seat .timer { position: absolute; inset: -6px; width: auto; height: auto; margin: 0; border-radius: 50%; visibility: hidden;
   background: conic-gradient(var(--tick) calc(var(--p, 0) * 1turn), rgba(255, 255, 255, .08) 0);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
