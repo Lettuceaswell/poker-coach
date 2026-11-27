@@ -21,6 +21,8 @@ Features below were decided in Feature Swipe rounds (round 1: 2026-11-28).
     - The review doubles as a pacing marker: orbit count and position.
     - It can be skipped each time, and Settings can turn it off.
 
+Built and live 2026-11-28. Postflop drills are still to come.
+
 Rules from this round:
 - Explanations come from solver data, not a live AI: no API keys, and everything works offline.
 - Green stays reserved for the coach's pick.
