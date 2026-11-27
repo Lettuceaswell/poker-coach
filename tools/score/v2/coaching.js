@@ -44,7 +44,7 @@ async function toggleHint(p) {
 }
 // Continue past a reveal: click the last visible button inside container or any continue-ish button.
 async function advance(p) {
-  const b = await visBtns(p); const k = b.find(x => /continue|next|done|ok|got it|deal|close/i.test(x.t));
+  const b = await visBtns(p); const k = b.find(x => /^(continue|next|done|ok|got it|deal)\b/i.test(x.t));
   if (k) { await clickNth(p, 'body', k.i); return true; } return false;
 }
 // Play one prompt: pre-commit snapshot, hint probe, answer choice idx, post-reveal snapshot.
@@ -93,7 +93,7 @@ async function sessionFrom(p, maxItems, seenTypes) {
 async function findEntry(E, seed, want) {
   // try every top-level button, then (for cash) auto-play; returns a page showing a [data-judgment] (want: type or any)
   const p0 = await E.page(seed); const top = await visBtns(p0); await p0._ctx.close();
-  for (let a = 0; a < Math.min(top.length, 14); a++) {
+  for (let a = 0; a < Math.min(top.length, 9); a++) {
     const p = await E.page(seed); await clickNth(p, 'body', a);
     for (let k = 0; k < 2; k++) { const s = await snap(p); if (s && (!want || s.type === want)) return p; const b = await visBtns(p); const nx = b.find(x => /drill|train|start|practice|quiz|play/i.test(x.t)); if (nx) await clickNth(p, 'body', nx.i); }
     const s = await snap(p); if (s && (!want || s.type === want)) return p;
@@ -117,7 +117,7 @@ export async function run({ root = '.', seed, browser } = {}) {
     const seen = new Set(); const byType = {}; const allPlays = [];
     // 1) drills session from the menu crawl (interleaving yields multiple types)
     const dp = await findEntry(E, {}, null);
-    if (dp) { const pl = await sessionFrom(dp, 30, seen); for (const x of pl) (byType[x.pre.type] ||= []).push(x); allPlays.push(...pl); await dp._ctx.close(); }
+    if (dp) { const pl = await sessionFrom(dp, 16, seen); for (const x of pl) (byType[x.pre.type] ||= []).push(x); allPlays.push(...pl); await dp._ctx.close(); }
     // 2) targeted reach for any frozen type not yet seen
     for (const t of TYPES) if (!byType[t]) {
       let p = t === 'calibration' ? await cashUntilCalib(E, {}) : await findEntry(E, {}, t);

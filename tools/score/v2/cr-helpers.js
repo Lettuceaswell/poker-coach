@@ -34,7 +34,7 @@ export async function env(root, browser) {
     await p.addInitScript(SEEDRNG);
     const entries = Object.entries(seed);
     if (entries.length) await p.addInitScript((e) => { try { for (const [k, v] of e) if (!localStorage.getItem(k)) localStorage.setItem(k, v); } catch (x) {} }, entries);
-    await p.goto(url); await p.waitForTimeout(opts.wait ?? 400);
+    await p.goto(url); await p.waitForTimeout(opts.wait ?? 120);
     return p;
   }
   async function close() { for (const c of pages) await c.close().catch(() => {}); if (own) await own.close(); server.close(); }
@@ -62,14 +62,16 @@ export const nums = (s) => (s.match(/\d+(?:\.\d+)?/g) || []);
 export const GATE = /unlock|upgrade|premium|paywall|subscribe|come back (later|tomorrow)|daily limit|limit reached|locked|pro only|go pro/i;
 export const approx = (a, b, tol) => Math.abs(a - b) <= tol;
 // Crawl menu: replay-able paths (list of [scope, index]) reaching each [data-feature]; depth 2.
-export async function crawl(E, maxTop = 14, maxSub = 14) {
-  const found = {}; const notes = [];
+const CR = new Map();
+export async function crawl(E, maxTop = 9, maxSub = 7) {
+  if (CR.has(E.url)) return CR.get(E.url);
+  const found = {}; CR.set(E.url, found); const notes = [];
   let p = await E.page(); const top = await visBtns(p); const nTop = Math.min(top.length, maxTop); await p._ctx.close();
   for (let a = -1; a < nTop; a++) {
     p = await E.page();
     if (a >= 0) { await clickNth(p, 'body', a); }
     for (const f of await featuresVisible(p)) if (!found[f]) found[f] = a < 0 ? [] : [a];
-    if (a >= 0) {
+    if (a >= 0 && Object.keys(found).length < 9) {
       const sub = await visBtns(p); const n = Math.min(sub.length, maxSub);
       for (let b = 0; b < n; b++) {
         if (/close|back|menu|^$/i.test(sub[b].t) && !sub[b].t) continue;
