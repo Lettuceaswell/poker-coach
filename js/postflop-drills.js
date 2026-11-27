@@ -6,6 +6,8 @@
 // returns in 2-3 items, then ~10, then ~22 (expanding gaps, Cepeda et al. 2006).
 // Only the solver's best option is ever green.
 const R = '23456789TJQKA', SG = { s: '♠', h: '♥', d: '♦', c: '♣' }, SI = { s: 0, h: 1, d: 2, c: 3 };
+const LINE_NAMES = { 'BTN-BB-SRP': 'BTN opens, BB calls', 'CO-BB-SRP': 'CO opens, BB calls', 'SB-BB-SRP': 'SB opens, BB calls', 'BTN-BB-3BP': 'BTN opens, BB 3-bets, BTN calls' };
+const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const GAPS = [[2, 3], [9, 11], [20, 24]];
 const QK = 'pf-drill-q', P_POSTFLOP = 0.45;
 let SPOTS = null, installed = false, ctxRef = null, openPre = null, lastStreet = '';
@@ -46,7 +48,7 @@ async function show() {
     <div class="drill-cards">${s.hand.map(card).join('')}</div>
     <div class="drill-acts">${s.opts.map((o, i) => `<button class="btn" data-i="${i}">${o}</button>`).join('')}</div>
     <div class="drill-out"></div>
-    <p class="small dim drill-stats">Heads-up single raised pot, 100 BB. Pick your play; the solver grades it in BB.</p></div>`);
+    <p class="small dim drill-stats">${s.line ? `${LINE_NAMES[s.line] || s.line}, ${s.street} spot. ` : ''}Pick your play; the solver grades it in BB.</p></div>`);
   const body = panelView(), acts = body.querySelector('.drill-acts');
   acts.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-i]'); if (!b || acts.dataset.done) return;
@@ -61,7 +63,7 @@ async function show() {
     acts.querySelectorAll('button').forEach((x, k) => { x.disabled = true; if (k === i) x.classList.add('chosen'); if (k === best) x.classList.add('coach-pick'); });
     body.querySelector('.drill-out').innerHTML = `<p><span class="grade ${gc}">${word}</span> ${cost < 0.05 ? 'Matches the best play.' : `Costs ${bb(cost)} against the best play.`}</p>
       <table class="pf-ev">${s.opts.map((o, k) => `<tr class="${k === best ? 'g' : ''}"><td>${o}</td><td>${Math.round(s.mix[k] * 100)}%</td><td>${bb(s.ev[k])}</td><td>${k === best ? 'best' : bb(s.ev[k] - evBest)}</td></tr>`).join('')}</table>
-      <p class="small dim">Solver mix and expected value in BB, measured from folding now. Ranges are approximate single raised pot ranges.</p>`;
+      <p class="small dim">Solver mix and expected value in BB, measured from folding now. ${esc(s.prov || 'Ranges are approximate single raised pot ranges (Chen-score cutoffs).')}</p>`;
     const nb = document.createElement('div'); nb.className = 'drill-next-bar';
     nb.innerHTML = '<button class="btn primary wide drill-next" data-pf="1">Next drill</button>';
     body.appendChild(nb);

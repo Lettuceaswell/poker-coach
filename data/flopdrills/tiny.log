@@ -1,0 +1,7 @@
+BTN-BB-3BP #1 5dAh8d 45.3 s exploit 0.63 -> 3 spots
+BTN-BB-3BP #0 TcTsJs 45.4 s exploit 0.76 -> 3 spots
+skip CO-BB-SRP #0 exploit 4.38
+skip CO-BB-SRP #1 exploit 3.25
+skip BTN-BB-SRP #0 exploit 4.10
+skip BTN-BB-SRP #1 exploit 3.92
+done: 6 spots, 6 flops solved, 48 s wall -> /home/lettuceaswell/Projects/poker-zenith2/data/flopdrills/flops-tiny.json

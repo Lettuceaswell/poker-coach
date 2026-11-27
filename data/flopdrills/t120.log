@@ -1,0 +1,7 @@
+skip CO-BB-SRP #0 exploit 3.21
+CO-BB-SRP #1 3c7s3h 121.8 s exploit 2.37 -> 3 spots
+SB-BB-SRP #0 Ts6h8h 121.9 s exploit 2.66 -> 3 spots
+SB-BB-SRP #1 4dTd6s 122.2 s exploit 2.77 -> 3 spots
+BTN-BB-SRP #1 2c3dKd 123.9 s exploit 2.83 -> 3 spots
+BTN-BB-SRP #0 8hQs3s 124.4 s exploit 2.91 -> 3 spots
+done: 15 spots, 6 flops solved, 126 s wall -> /tmp/fd120/flops-t120.json

@@ -1,0 +1,34 @@
+BTN-BB-SRP river 5 boards ok 6 spots exploit 0.00
+BTN-BB-SRP river 5 boards ok 6 spots exploit 0.00
+BTN-BB-SRP river 5 boards ok 6 spots exploit 0.00
+BTN-BB-SRP river 5 boards ok 6 spots exploit 0.00
+BTN-BB-SRP river 5 boards ok 6 spots exploit 0.00
+BTN-BB-SRP turn 4 boards ok 3 spots exploit 0.28
+BTN-BB-SRP turn 4 boards ok 3 spots exploit 0.33
+BTN-BB-SRP turn 4 boards ok 3 spots exploit 0.30
+CO-BB-SRP river 5 boards ok 6 spots exploit 0.00
+CO-BB-SRP river 5 boards ok 6 spots exploit 0.00
+CO-BB-SRP river 5 boards ok 6 spots exploit 0.00
+CO-BB-SRP river 5 boards ok 6 spots exploit 0.00
+CO-BB-SRP river 5 boards ok 6 spots exploit 0.00
+CO-BB-SRP turn 4 boards ok 3 spots exploit 0.22
+CO-BB-SRP turn 4 boards ok 3 spots exploit 0.16
+CO-BB-SRP turn 4 boards ok 3 spots exploit 0.13
+SB-BB-SRP river 5 boards ok 6 spots exploit 0.00
+SB-BB-SRP river 5 boards ok 6 spots exploit 0.00
+SB-BB-SRP river 5 boards ok 6 spots exploit 0.00
+SB-BB-SRP river 5 boards ok 6 spots exploit 0.00
+SB-BB-SRP river 5 boards ok 6 spots exploit 0.00
+SB-BB-SRP turn 4 boards ok 3 spots exploit 0.15
+SB-BB-SRP turn 4 boards ok 3 spots exploit 0.05
+SB-BB-SRP turn 4 boards ok 3 spots exploit 0.15
+BTN-BB-3BP river 5 boards ok 6 spots exploit 0.00
+BTN-BB-3BP river 5 boards ok 6 spots exploit 0.00
+BTN-BB-3BP river 5 boards ok 6 spots exploit 0.00
+BTN-BB-3BP river 5 boards ok 6 spots exploit 0.00
+BTN-BB-3BP river 5 boards ok 6 spots exploit 0.00
+BTN-BB-3BP turn 4 boards ok 3 spots exploit 0.00
+BTN-BB-3BP turn 4 boards ok 3 spots exploit 0.00
+BTN-BB-3BP turn 4 boards ok 3 spots exploit 0.00
+156 spots {"id":0,"street":"river","board":["8h","Qs","3s","Ah","Ks"],"pot":24.8,"stack":87.8,"hero":"OOP","facing":0,"hand":["8s","Ad"],"opts":["Check","Bet 16.4","All-in"],"mix":[0.359,0.641,0],"ev":[16.23,16.23,12.96],"exploit":0,"line":"BTN-BB-SRP","prov":"BTN opens, BB calls: ranges from the solved 6-max preflop strategy (data/preflop-6.bin), thinned to the strongest 60% by hand strength for the river; pot and stacks assume earlier-street betting (not a solved narrowing)."}
+merged 21 solved flop spots; 177 total spots
