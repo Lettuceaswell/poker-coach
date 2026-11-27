@@ -2,3 +2,5 @@ node_modules/
 shots/
 data/*.bin
 data/*.vis
+data/calib/*.bin
+data/calib/*.vis

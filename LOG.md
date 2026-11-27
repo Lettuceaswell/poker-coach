@@ -105,3 +105,6 @@ The browser tools use playwright-core with `/usr/bin/chromium`. Long solves run 
 - Limp spots against the normies are approximations.
 - The flop solve on a phone is depth-limited and slow.
 - Multiway postflop is an estimate, not a solve.
+
+## Calibrated-preflop pipeline (Zenith run 2, TODO #1) — built 2026-11-27
+`node tools/calib/run.js --players 6 --rounds N --flops K --minutes M --workers W --out data/calib [--tiny]`: enumerates the common heads-up endings from the starting solution, solves them postflop over K weighted flops (worker_threads), writes `realization-rN.json`, re-solves preflop with it (`tools/solve.js` env hooks `SOLVE_TABLE/SOLVE_OUT/SOLVE_TAG/SOLVE_N0`; unset = identical output), and logs gauges to `gauges.jsonl`. Never writes `data/preflop-*.bin`. Tiny run (~3 min): `nice -n 19 taskset -c 8-15 node tools/calib/run.js --tiny --out data/calib`. Flop solves need >= 60 s each to converge (60 s: exploitability 8% of pot, EQR still moving); the solve.js HU exploitability reads negative (rake offset), compare it between rounds only.

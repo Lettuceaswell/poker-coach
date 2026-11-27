@@ -13,8 +13,15 @@ const N = +(process.argv[2] || 2);
 const MINUTES = +(process.argv[3] || 1);
 let seed = +(process.argv[4] || 1) >>> 0 || 1;
 const rnd = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
-fs.mkdirSync('data', { recursive: true });
-const LOG = `data/preflop-${N}.log`;
+// Optional calibration hooks (tools/calib). All default to the original behavior when unset.
+//   SOLVE_OUT    output directory (default 'data')
+//   SOLVE_TAG    suffix on output names, e.g. '-r1' -> preflop-6-r1.bin (default '')
+//   SOLVE_TABLE  realization table JSON from tools/calib/run.js (default: flat factors)
+//   SOLVE_N0     smoothing: weight n/(n+N0) on the measured value (default 20)
+const OUT = process.env.SOLVE_OUT || 'data';
+const TAG = process.env.SOLVE_TAG || '';
+fs.mkdirSync(OUT, { recursive: true });
+const LOG = `${OUT}/preflop-${N}${TAG}.log`;
 const log = (...a) => { const s = a.join(' '); console.log(s); fs.appendFileSync(LOG, s + '\n'); };
 
 // ---------- class helpers ----------
@@ -88,8 +95,31 @@ const stratSum = new Float64Array(size);
 const VIS = new Uint32Array(nodes.length * 169); // traverser visits per node and hand class
 log(`${N} players (${POSITIONS[N].join(' ')}), ${nodes.length} nodes, ${size} entries, ${MINUTES} min, seed ${process.argv[4] || 1}`);
 
+// ---------- optional measured realization table ----------
+// Keys are `${ip}|${oop}|${raises}` by position name; a showdown terminal between two players with a
+// table entry uses the measured per-class factor (smoothed toward the flat guess where data is thin).
+const TABLE = process.env.SOLVE_TABLE ? JSON.parse(fs.readFileSync(process.env.SOLVE_TABLE, 'utf8')) : null;
+const N0 = +(process.env.SOLVE_N0 || 20);
+const TKEY = new Array(nodes.length).fill(null); // terminal id -> table entry
+if (TABLE) {
+  const walk = (id, raises) => {
+    const nd = nodes[id];
+    if (nd.term) {
+      if (nd.term === 'show' && nd.live.length === 2) {
+        const [lo, hi] = nd.live.slice().sort((a, b) => postflopRank(N, a) - postflopRank(N, b));
+        const nm = POSITIONS[N];
+        TKEY[id] = TABLE.spots[`${nm[hi]}|${nm[lo]}|${raises}`] || TABLE.agg[`${raises}`] || null;
+      }
+      return;
+    }
+    for (const a of nd.acts) walk(a.next, raises + (a.t === 'r' ? 1 : 0));
+  };
+  walk(0, 0);
+}
+
 // realization weights for live players at a showdown terminal
-function realization(live, cls) {
+function realization(live, cls, nd) {
+  const ent = nd && TABLE ? TKEY[nd.id] : null;
   const order = live.slice().sort((a, b) => postflopRank(N, a) - postflopRank(N, b));
   const k = live.length;
   const R = {};
@@ -97,6 +127,11 @@ function realization(live, cls) {
     // measured solver EQR: ~1.14 IP / ~0.80-0.87 OOP heads-up (poker.academy, GTO Wizard)
     const base = k === 2 ? (idx === 1 ? 1.14 : 0.83) : 0.8 + 0.32 * idx / (k - 1);
     R[p] = base * PLAY[cls[p]];
+    if (ent) {
+      const role = idx === 1 ? ent.ip : ent.oop;
+      const m = role.n[cls[p]], lam = m / (m + N0);
+      R[p] = lam * role.r[cls[p]] + (1 - lam) * R[p];
+    }
   });
   return R;
 }
@@ -112,7 +147,7 @@ function terminal(nd, hands, cls) {
   for (let i = 0; i < N; i++) util[i] = -put[i];
   if (nd.term === 'fold') { util[nd.live[0]] += pot; return; }
   const live = nd.live;
-  const R = realization(live, cls);
+  const R = realization(live, cls, nd);
   // less postflop play left = realization closer to plain equity (all-in: exactly equity)
   const spr = (STACK - Math.max(...put)) / pot;
   const w = Math.min(1, spr / 3);
@@ -255,7 +290,7 @@ function exploitability() {
     if (nd.term === 'fold') return (nd.live[0] === me ? pot : 0) - nd.put[me];
     const live = [0, 1];
     const cls = me === 0 ? [c, j] : [j, c];
-    const R = realization(live, cls);
+    const R = realization(live, cls, nd);
     const w = Math.min(1, (STACK - Math.max(...nd.put)) / pot / 3);
     for (const p of live) R[p] = 1 + (R[p] - 1) * w;
     const e = EQ[c * 169 + j];
@@ -314,7 +349,7 @@ function writeOut() {
       for (let a = 0; a < k; a++) bytes[OFF[nd.id] + c * k + a] = Math.round(s[a] * 255);
     }
   }
-  fs.writeFileSync(`data/preflop-${N}.bin`, bytes);
+  fs.writeFileSync(`${OUT}/preflop-${N}${TAG}.bin`, bytes);
   // per node: log2 of total traverser visits (the coach marks thin spots as estimates)
   const vis = new Uint8Array(nodes.length);
   for (const nd of nodes) {
@@ -322,7 +357,7 @@ function writeOut() {
     let t = 0; for (let c = 0; c < 169; c++) t += VIS[nd.id * 169 + c];
     vis[nd.id] = Math.min(255, Math.round(Math.log2(t + 1) * 4));
   }
-  fs.writeFileSync(`data/preflop-${N}.vis`, vis);
+  fs.writeFileSync(`${OUT}/preflop-${N}${TAG}.vis`, vis);
 }
 
 // ---------- run ----------
