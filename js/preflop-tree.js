@@ -35,8 +35,10 @@ export function raiseSize(n, st, p) {
   const cur = Math.max(...st.bets);
   const ip = postflopRank(n, p) > postflopRank(n, st.lastRaiser);
   const callers = st.callersThisLevel;
-  if (level === 1) return Math.min(STACK, r1(cur * (ip ? 3 : 4) + callers * cur));
-  return Math.min(STACK, r1(cur * (ip ? 2.25 : 2.5)));
+  // 3-bet: 3x in position; out of position SB 4.4x, BB 5x (GTO Wizard-style); +1x per caller
+  if (level === 1) return Math.min(STACK, r1(cur * (ip ? 3 : names[p] === 'BB' ? 5 : 4.4) + callers * cur));
+  // 4-bet: ~2.5x in position, ~2.6x out of position
+  return Math.min(STACK, r1(cur * (ip ? 2.5 : 2.6)));
 }
 
 // Build the whole tree. Returns { nodes } where each decision node is

@@ -64,6 +64,32 @@ const act = (g, seat, type, to) => { ok(g.toAct === seat, `expected seat ${seat}
   eq([L.toCall, L.minTo], [0, 10], 'postflop min bet is 1 BB');
 }
 
+// 3b. TDA examples: 600 -> 1600 -> 3600 means the next min is 5600 (chips x10 scale)
+{
+  const g = table([100000, 100000, 100000, 100000], 0, {}, '2c7h9dJs3c');
+  act(g, 3, 'call'); act(g, 0, 'call'); act(g, 1, 'call'); act(g, 2, 'check');
+  act(g, 1, 'raise', 600); act(g, 2, 'raise', 1600); act(g, 3, 'raise', 3600);
+  eq(g.legal().minTo, 5600, 'min raise after 600/1600/3600 is 5600');
+}
+{
+  // open 300 (BB 100 scale x... use bb=10: open 30), short all-ins to 50/65/80; next full raise min = 80+20 = 100
+  const g = table([1000, 50, 65, 80, 1000], 0, {});
+  // button 0, SB 1 (50), BB 2 (65), UTG 3 (80), HJ 4
+  act(g, 3, 'raise', 30 > 80 ? 80 : 30);
+  act(g, 4, 'call'); act(g, 0, 'call');
+  act(g, 1, 'raise', 50); act(g, 2, 'raise', 65);
+  // UTG all-in for 80
+  const L = g.legal();
+  ok(g.toAct === 3, 'UTG to act');
+}
+{
+  const g = table([1000, 1000, 1000, 1000, 1000, 1000], 5, {});
+  // generic: open to 30 (raise of 20), all-ins that are short keep min raise increment 20
+  act(g, 2, 'raise', 30);
+  const before = g.lastRaise;
+  eq(before, 20, 'open to 30 sets raise increment 20');
+}
+
 // 4. BB option after limps
 {
   const g = table([1000, 1000, 1000], 0, {});

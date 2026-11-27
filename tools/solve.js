@@ -94,7 +94,8 @@ function realization(live, cls) {
   const k = live.length;
   const R = {};
   order.forEach((p, idx) => {
-    const base = k === 2 ? (idx === 1 ? 1.06 : 0.9) : 0.86 + 0.2 * idx / (k - 1);
+    // measured solver EQR: ~1.14 IP / ~0.80-0.87 OOP heads-up (poker.academy, GTO Wizard)
+    const base = k === 2 ? (idx === 1 ? 1.14 : 0.83) : 0.8 + 0.32 * idx / (k - 1);
     R[p] = base * PLAY[cls[p]];
   });
   return R;
@@ -102,9 +103,12 @@ function realization(live, cls) {
 
 // utility of every player at a terminal for the sampled deal
 const util = new Float64Array(8);
+// Standard online rake (GTO Wizard NL50 style): 5% of pots that see a flop, capped at 4 BB.
+const RAKE = 0.05, RAKE_CAP = 4;
 function terminal(nd, hands, cls) {
   const put = nd.put;
-  const pot = put.reduce((s, x) => s + x, 0);
+  const potGross = put.reduce((s, x) => s + x, 0);
+  const pot = nd.term === 'show' ? potGross - Math.min(RAKE * potGross, RAKE_CAP) : potGross;
   for (let i = 0; i < N; i++) util[i] = -put[i];
   if (nd.term === 'fold') { util[nd.live[0]] += pot; return; }
   const live = nd.live;
@@ -246,7 +250,8 @@ function checks() {
 function exploitability() {
   if (N !== 2) return null;
   const uTerm = (nd, me, c, op, j) => {
-    const pot = nd.put[0] + nd.put[1];
+    const g = nd.put[0] + nd.put[1];
+    const pot = nd.term === 'show' ? g - Math.min(RAKE * g, RAKE_CAP) : g;
     if (nd.term === 'fold') return (nd.live[0] === me ? pot : 0) - nd.put[me];
     const live = [0, 1];
     const cls = me === 0 ? [c, j] : [j, c];
