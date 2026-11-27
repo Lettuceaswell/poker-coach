@@ -113,6 +113,7 @@ export function recordDrill(ok, item) {
   const d = db.drills;
   d.n++; if (ok) d.good++;
   d.recent = (d.recent || []).concat(ok ? 1 : 0).slice(-20);
+  if (item.type) { d.types = d.types || {}; d.types[item.type] = (d.types[item.type] || []).concat(ok ? 1 : 0).slice(-20); }
   if (!d.queue) d.queue = [];
   const box = item.box || 0;
   if (!ok) d.queue.push({ ...item, box: 0, due: d.n + gapFor(0) });
@@ -132,6 +133,12 @@ export function drillAccuracy() {
   const d = db.drills;
   if (d.recent && d.recent.length >= 5) return d.recent.reduce((s, x) => s + x, 0) / d.recent.length;
   return d.n >= 5 ? d.good / d.n : null;
+}
+
+// rolling accuracy on one spot type (last 20), for the reward prediction error; { acc, n }
+export function typeAccuracy(type) {
+  const r = (db.drills.types || {})[type] || [];
+  return { n: r.length, acc: r.length ? r.reduce((s, x) => s + x, 0) / r.length : 0 };
 }
 
 export function resetHistory() {

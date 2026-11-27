@@ -3,6 +3,20 @@
 import { treeFor, strategyAt, className, reachAt } from './coach.js';
 import { POSITIONS, STACK } from './preflop-tree.js';
 import { EQ_VS_RANDOM } from './strength.js';
+import { fadeLevel, scaffoldHTML, wireHint, preflopParts, preflopExplain } from './drill-coach.js';
+import { rewardFor, rewardHTML } from './reward.js';
+
+// money state at the hero's decision, replayed from the walked path
+function priceAt(n, node, hero) {
+  const tree = treeFor(n), names = POSITIONS[n];
+  const bets = names.map(x => x === 'SB' ? 0.5 : x === 'BB' ? 1 : 0);
+  for (const st of node.path) {
+    const a = tree.nodes[st.id].acts[st.ai];
+    if (a.t === 'r') bets[st.p] = a.to; else if (a.t === 'c') bets[st.p] = Math.max(...bets);
+  }
+  const cur = Math.max(...bets);
+  return { pot: bets.reduce((x, y) => x + y, 0), toCall: cur - bets[hero], cur };
+}
 
 const R = '23456789TJQKA';
 const SG = ['♠', '♥', '♦', '♣'];
@@ -124,14 +138,21 @@ export async function openDrills(ctx) {
     const labels = node.acts.map(a => a.t === 'f' ? 'Fold' : a.t === 'c' ? 'Call' : a.to >= STACK ? 'All-in' : `${rw} ${a.to}`);
     const d = H.history.drills;
     const stats = d.n ? `${d.n} drills · ${Math.round(100 * d.good / d.n)}% good` : 'Tap your play. Hands near the edge of the range come up most.';
-    const html = `<div class="drill">
-      <p class="drill-spot">${sc.label}</p>
+    const px = priceAt(n, node, sc.hero);
+    const raiseA = node.acts.find(a => a.t === 'r');
+    const P = POSITIONS[n];
+    const pr = { pot: px.pot, toCall: px.toCall, raiseTo: raiseA ? raiseA.to : 0, pos: P[sc.hero], type: sc.type, openerName: P[sc.opener], threeName: P[sc.three] };
+    const lvl = fadeLevel(H);
+    const html = `<div class="drill" data-judgment="drill-preflop">
+      <p class="drill-spot">${sc.label} · pot ${Math.round(px.pot * 10) / 10} BB · ${Math.round(px.toCall * 10) / 10} to call</p>
+      ${scaffoldHTML(preflopParts(pr), lvl)}
       <div class="drill-cards">${cards.map(([r, s]) => `<div class="card s-${s}"><span class="rk">${r === 8 ? '10' : R[r]}</span><span class="st">${SG[s]}</span></div>`).join('')}</div>
       <div class="drill-acts">${node.acts.map((a, i) => `<button class="btn" data-i="${i}">${labels[i]}</button>`).join('')}</div>
       <div class="drill-out"></div>
       <p class="small dim drill-stats">${stats}</p></div>`;
     openPanel('Drills', html);
     const body = ctx.panelView();
+    wireHint(body);
     body.querySelector('.drill-acts').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-i]'); if (!b || body.querySelector('.drill-acts').dataset.done) return;
       body.querySelector('.drill-acts').dataset.done = '1';
@@ -142,7 +163,10 @@ export async function openDrills(ctx) {
       const f = byT[t];
       const topT = Object.keys(byT).reduce((x, y) => (byT[y] > byT[x] ? y : x));
       const [word, gc] = f >= 0.5 || t === topT ? ['Best', 'g'] : f >= 0.15 ? ['Good', 'g'] : f >= 0.03 ? ['Rare', 'y'] : ['Mistake', 'r'];
-      H.recordDrill(gc === 'g', { n, label: sc.label, cls, box: item ? item.box : 0, review: !!item });
+      const typeKey = 'preflop ' + sc.key;
+      const prior = H.typeAccuracy(typeKey);
+      H.recordDrill(gc === 'g', { n, label: sc.label, cls, box: item ? item.box : 0, review: !!item, type: typeKey });
+      const topK = p.indexOf(Math.max(...p));
       body.querySelectorAll('.drill-acts button').forEach((x, k) => { x.disabled = true; if (k === i) x.classList.add('chosen'); });
       // BB price: indifferent (mixed) actions cost ~0; an action the solver avoids costs about its
       // avoidance share of the pot at stake. Estimated from the solver frequencies, not a separate solve.
@@ -152,7 +176,13 @@ export async function openDrills(ctx) {
       const bbLine = f >= 0.15 ? `<p class="dim small">Cost vs the coach's pick: about 0.0 BB (the solver mixes this play).</p>`
         : `<p class="dim small">Cost vs the coach's pick: about ${cost.toFixed(2)} BB per time (estimate from solver frequencies; it plays ${labels[node.acts.findIndex(a => a.t === topT)]} ${Math.round(100 * best)}%).</p>`;
       const mix = node.acts.map((a, k) => `${labels[k]} ${Math.round(p[k] * 100)}%`).filter((_, k) => p[k] >= 0.01).join(' · ');
+      const names = labels.map(l => l.replace(/\s+[\d.]+$/, ''));
+      const costTxt = f >= 0.15 ? 'Cost of your play versus the solver pick: 0 BB.' : `Cost of your play versus the solver pick: about ${cost.toFixed(2)} BB per time.`;
+      const expl = preflopExplain({ names, p, top: topK, k: i, cls: className(cls), pr, cost: costTxt, pos: pr.pos });
+      const rwd = rewardFor({ correct: i === topK, topFreq: p[topK], prior, now: H.typeAccuracy(typeKey), review: !!item, label: sc.key });
       body.querySelector('.drill-out').innerHTML = `<p><span class="grade ${gc}">${word}</span> ${className(cls)}: ${mix}</p>
+        <p class="cb-explain" data-coach="explain">${expl}</p>
+        ${rewardHTML(rwd)}
         ${bbLine}
         ${gridHTML({ mixes: nodeMixes(S.strat, node), mark: cls, reach })}`;
       const nb = document.createElement('div'); nb.className = 'drill-next-bar';

@@ -489,6 +489,23 @@ body.four .ct.s-2 { color: var(--blue); } body.four .ct.s-3 { color: var(--green
 .why-btn { height: 44px; margin-left: 2px; }
 .orbit-head { min-height: 44px; }
 
+/* drill coaching scaffold + reward moment (lane D1) */
+.drill .small { font-size: 13px !important; }
+.coach-box { margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 14px; line-height: 1.4; color: #d6d6da; }
+.coach-box p { margin: 0 0 6px; font-size: 14px; }
+.coach-box .cb-def { color: #f2f2f2; }
+.coach-box .cb-in { color: #d6d6da; }
+.coach-box .cb-m p { margin-bottom: 4px; }
+.coach-box .cb-ex { color: #d6d6da; font-style: italic; }
+.hint-tog { height: 44px; min-width: 120px; margin: 2px 0 0; font-size: 15px; color: #d6d6da; }
+.coach-box .cb-hint { margin: 8px 0 0; color: #f2f2f2; }
+.cb-explain { font-size: 14px; line-height: 1.4; color: #d6d6da; margin: 8px 0; }
+.reward { margin: 10px 0; padding: 8px 12px; border-left: 3px solid #f5c84a; background: rgba(245, 200, 74, .08); border-radius: 8px; animation: rewardIn .35s ease-out; }
+.reward p { margin: 0; font-size: 14px; line-height: 1.35; color: #f2f2f2; }
+.reward p:first-child { color: #f5c84a; font-weight: 600; }
+.reward[data-tier="3"] { border-left-width: 5px; background: rgba(245, 200, 74, .14); }
+@keyframes rewardIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .reward { animation: none; } }
 small { font-size: 13px !important; }
 .quick { flex-wrap: wrap; height: 44px; overflow: hidden; -webkit-mask-image: none; mask-image: none; gap: 6px; padding: 0; align-content: flex-start; }
 .quick button:last-child { margin-right: 0; }
