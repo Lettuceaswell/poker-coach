@@ -8,6 +8,7 @@ import * as pf from './postflop-coach.js';
 import * as H from './history.js';
 import { preflopDetail, postflopDetail, villainView, storedPreflopGrid, nodeMixes } from './explain.js';
 import { gridHTML } from './grid.js';
+import { coachBlocks, explainText, isExpert } from './calib-coach.js';
 import { openDrills } from './drills.js';
 import { installPostflopDrills } from './postflop-drills.js';
 import { progressHTML, progressMini } from './progress.js';
@@ -1202,11 +1203,11 @@ async function openOrbitReview(hands) {
   const qHTML = qs.map((q, k) => {
     const a = rv.answers[q.kind];
     const lo = a ? a.lo : 20, hi = a ? a.hi : 45;
-    return `<div class="calq" data-k="${k}"><p>${q.ask}</p>
+    return `<div class="calq" data-k="${k}" data-judgment="calibration"><p>${q.ask}</p>${coachBlocks(q, d0, isExpert(H.history.calib))}
       <div class="dual"><div class="dual-track"><i class="dual-fill"></i><i class="dual-truth${a ? ' on' : ''}" style="left:${a ? a.truth : 0}%"></i></div>
         <input type="range" min="0" max="100" value="${lo}" class="lo"${a ? ' disabled' : ''}><input type="range" min="0" max="100" value="${hi}" class="hi"${a ? ' disabled' : ''}></div>
       <div class="calrow"><span class="calval">${lo}% – ${hi}%</span><button class="btn small-btn reveal"${a ? ' disabled' : ''}>Reveal</button></div>
-      <p class="calres small">${a ? resultText(a) : ''}</p></div>`;
+      <p class="calres small">${a ? resultText(a, q) : ''}</p><p class="small" data-coach="explain">${a ? explainText(q, d0, a) : ''}</p></div>`;
   }).join('');
   function resultText(a) { return `${a.hit ? '<b class="up">Inside your range.</b>' : '<b class="down">Outside your range.</b>'} The answer was ${a.truth}%.`; }
   function verdictHTML() {
@@ -1216,7 +1217,7 @@ async function openOrbitReview(hands) {
     if (!e) return `<p class="verdict">${grade}</p>`;
     const gap = e.truth - n.truth;
     const side = gap >= 0 ? `calling had the edge by ${gap} points` : `folding had the edge by ${-gap} points`;
-    return `<p class="verdict">You needed ${n.truth}% and had ${e.truth}%: on price alone ${side}${d0.street === 'preflop' ? ' (position after the flop shifts this a little)' : ''}. ${grade}</p>`;
+    return `<p class="verdict">You needed ${n.truth}% and had ${e.truth}%: on price alone ${side}${d0.street === 'preflop' ? ' (position after the flop shifts this a little)' : ''}. Rule: call when your win share beats the price, ${e.truth}% vs ${n.truth}%. ${grade}</p>`;
   }
   const html = `${qs.length ? `<section><h4>Calibration · 90% ranges</h4><p class="small dim">${calibLine}</p>${spotHTML}${qHTML}<div class="verdict-box">${verdictHTML()}</div>
       <button class="btn wide spot-replay" data-hand="${h0.no}">Replay this hand</button></section>` : ''}
@@ -1230,6 +1231,8 @@ async function openOrbitReview(hands) {
       el.querySelector('.calval').textContent = `${lo.value}% – ${hi.value}%`;
       const f = el.querySelector('.dual-fill'); f.style.left = lo.value + '%'; f.style.width = (hi.value - lo.value) + '%';
     };
+    const ht = el.querySelector('[data-coach="hint-toggle"]'), hb = el.querySelector('[data-coach="hint"]');
+    ht.addEventListener('click', () => { hb.hidden = !hb.hidden; });
     lo.addEventListener('input', sync); hi.addEventListener('input', sync); sync();
     el.querySelector('.reveal').addEventListener('click', (ev) => {
       const q = qs[+el.dataset.k];
@@ -1239,6 +1242,7 @@ async function openOrbitReview(hands) {
       H.save();
       const t = el.querySelector('.dual-truth'); t.style.left = truth + '%'; t.classList.add('on');
       el.querySelector('.calres').innerHTML = resultText(a);
+      el.querySelector('[data-coach="explain"]').textContent = explainText(q, d0, a);
       ev.target.disabled = true; lo.disabled = true; hi.disabled = true;
       view.querySelector('.verdict-box').innerHTML = verdictHTML();
     });
