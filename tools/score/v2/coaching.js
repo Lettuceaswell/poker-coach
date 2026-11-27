@@ -90,23 +90,22 @@ async function sessionFrom(p, maxItems, seenTypes) {
   }
   return plays;
 }
-async function findEntry(E, seed, want) {
-  // try every top-level button, then (for cash) auto-play; returns a page showing a [data-judgment] (want: type or any)
-  const p0 = await E.page(seed); const top = await visBtns(p0); await p0._ctx.close();
-  for (let a = 0; a < Math.min(top.length, 9); a++) {
-    const p = await E.page(seed); await clickNth(p, 'body', a);
-    for (let k = 0; k < 2; k++) { const s = await snap(p); if (s && (!want || s.type === want)) return p; const b = await visBtns(p); const nx = b.find(x => /drill|train|start|practice|quiz|play/i.test(x.t)); if (nx) await clickNth(p, 'body', nx.i); }
-    const s = await snap(p); if (s && (!want || s.type === want)) return p;
-    await p._ctx.close();
+async function findEntry(E, seed, want) { // replay a crawled path to a [data-judgment] prompt (want: type or any)
+  const found = await crawl(E); const keys = Object.keys(found).filter(k => k.startsWith('j:') && (!want || k === 'j:' + want));
+  for (const k of keys.slice(0, 2)) {
+    const p = await replay(E, found[k], seed);
+    for (let i = 0; i < 2; i++) { const s = await snap(p); if (s && (!want || s.type === want)) return p; const b = await visBtns(p); const nx = b.find(x => /drill|train|start|practice|quiz|play/i.test(x.t)); if (nx) await clickNth(p, 'body', nx.i); }
+    const s = await snap(p); if (s && (!want || s.type === want)) return p; await p._ctx.close();
   }
   return null;
 }
-async function cashUntilCalib(E, seed) { // play cash hands via action buttons until an orbit review calibration prompt shows
+async function cashUntilCalib(E, seed) { // play cash hands via action buttons until an orbit review calibration prompt shows (<= 40 taps, <= 12 s)
   const p = await E.page(seed); const b0 = await visBtns(p); const cash = b0.find(x => /cash|play|table/i.test(x.t)); if (cash) await clickNth(p, 'body', cash.i);
-  for (let i = 0; i < 160; i++) {
+  const t0 = Date.now();
+  for (let i = 0; i < 40 && Date.now() - t0 < 12000; i++) {
     const s = await snap(p); if (s) return p;
     const b = await visBtns(p); const a = b.find(x => /^(fold|check|call|continue|next|ok|deal|got it|close)/i.test(x.t));
-    if (a) await clickNth(p, 'body', a.i); else await p.waitForTimeout(300);
+    if (a) await clickNth(p, 'body', a.i); else await p.waitForTimeout(150);
   }
   await p._ctx.close(); return null;
 }
@@ -120,7 +119,7 @@ export async function run({ root = '.', seed, browser } = {}) {
     if (dp) { const pl = await sessionFrom(dp, 16, seen); for (const x of pl) (byType[x.pre.type] ||= []).push(x); allPlays.push(...pl); await dp._ctx.close(); }
     // 2) targeted reach for any frozen type not yet seen
     for (const t of TYPES) if (!byType[t]) {
-      let p = t === 'calibration' ? await cashUntilCalib(E, {}) : await findEntry(E, {}, t);
+      let p = await findEntry(E, {}, t); if (!p && t === 'calibration') p = await cashUntilCalib(E, {});
       if (p) { const pl = await sessionFrom(p, 4, seen); for (const x of pl) (byType[x.pre.type] ||= []).push(x); allPlays.push(...pl); await p._ctx.close(); }
     }
     const types = [...new Set([...TYPES, ...Object.keys(byType)])];

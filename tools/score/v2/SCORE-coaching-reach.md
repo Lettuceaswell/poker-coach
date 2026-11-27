@@ -26,10 +26,23 @@ Each item earns 15/9 only if the screen is reachable and the behavior is observe
 1 library: a control changes the shown strategy, >= 2 percentages, frequencies sum ~100 (a row sums to 100+-2, otherwise <= 400 total).
 2 review: text has solver/best line and BB figures; cost > 0 and a cost of 0 both appear (matching vs off-line decision).
 3 custom-solve: >= 2 inputs; typing size 33 then 150 and tapping solve/run gives different strategies with >= 2 percentages.
-4 report: rows `label N BB` sum to the `Total N BB` line within 0.1 (changes under a changed hand set not measured: no portable seed schema).
+4 report: rows `label N BB` sum to the `Total N BB` line within 0.1 and the report must differ between two UI-played hand sets (8 taps vs 40 taps of fold/check/call/continue on the cash table, then reload, reopen the report; storage persists in the context).
 5 nodelock: tapping a lock control changes the response text.
 6 multiway: text labeled estimate/approx/multiway, has a percentage, and differs after a second control change.
 7 export: tapping export/download triggers a download that parses (JSON, or CSV with >= 2 comma lines) and contains >= 2 numbers shown on screen.
 8 stacks: >= 2 controls; selecting a different depth changes the text.
 9 trainer: >= 40 consecutive drill answers with no gate text (unlock|upgrade|premium|paywall|come back|limit|locked) and no gate on any menu feature.
 Determinism: the same control tapped twice yields identical text (else the item fails). Absent feature = 0 with note.
+
+## Frozen text formats (part of the app interface; lanes build to these)
+- Solver mix, anywhere a strategy is shown (library, review, custom-solve, nodelock, multiway, stacks, explain after reveal): `Action NN%` pairs, e.g. `Call 70%  Fold 30%` (name, optional `:`/`=`, integer or decimal, `%`). A row (one line) must sum to 100 +-2.
+- BB cost lines (review, report rows): `<label> ... N BB` or `cost|lost|loss ... N BB` (decimals ok). Review: cost `0 BB` for a decision equal to the solver's top action, `> 0 BB` for an off-line decision; both must be present in the review of the played/seeded hands, with the words solver/best/top/line.
+- Report: one row per leak as `<position|street|spot label> N.N BB`, and one line `Total N.N BB` equal to the sum of row magnitudes (+-0.1). Rows are not prefixed by the word total.
+- Multiway: text contains `estimate`, `approx` or `multiway`/`3-way`.
+- Export: button text matches export|download|save; the file is JSON or CSV with the shown numbers.
+- Nodelock: a button whose text contains `lock`; custom-solve: >= 2 text/number inputs plus a button matching solve|run|go|compute.
+- Gate words that fail the trainer item: unlock|upgrade|premium|paywall|subscribe|come back later|daily limit|limit reached|locked|pro only.
+## Speed (measured on the base app, alone)
+crawl is shared by root, runs in parallel contexts under a 22 s budget; reach.js ~29 s, coaching.js ~42 s alone; module timeout in app-score-v2.js is 70 s (score 0 on timeout).
+## Unproven
+Live proof with an injected implementation was not done for any sub-score (deadline); every check above is exercised only against the base app (all absent = ~0).

@@ -56,14 +56,15 @@ if (needV1) {
 for (const k of ['accuracy', 'speed', 'learning']) if (want(k) && !cats[k]) cats[k] = { points: 0, max: MAX[k], subs: [], observed: { skipped: NO_V1 ? '--no-v1' : 'v1 failed' } };
 
 // ---- browser categories (own chromium; run after v1 so speed timing stayed clean) ----
+const subsList = (o) => Object.entries(o || {}).flatMap(([k, v]) => k === 'types' ? Object.entries(v).map(([t, x]) => ({ name: 'types.' + t, points: x.points, max: x.max })) : v && typeof v.points === 'number' ? [{ name: k, points: v.points, max: v.max }] : []);
 async function mod(name, cat) {
   if (!want(cat)) return;
   const f = path.join(HERE, name + '.js'); const t = performance.now();
   if (!fs.existsSync(f)) { cats[cat] = { points: 0, max: MAX[cat], subs: [], observed: { missing: name + '.js not present: 0' } }; return; }
   let to; try {
     const m = await import(pathToFileURL(f).href);
-    const res = await Promise.race([m.run({ root: ROOT, seed: SEED }), new Promise((_, rej) => { to = setTimeout(() => rej(new Error('module timeout 85 s')), 85000); })]);
-    cats[cat] = { points: r2(res.points), max: MAX[cat], subs: res.subs || [], observed: res.notes || res.observed || {}, wall_s: r2((performance.now() - t) / 1000) };
+    const res = await Promise.race([m.run({ root: ROOT, seed: SEED }), new Promise((_, rej) => { to = setTimeout(() => rej(new Error('module timeout 70 s')), 70000); })]);
+    cats[cat] = { points: r2(res.points), max: MAX[cat], subs: Array.isArray(res.subs) ? res.subs : subsList(res.subs), observed: res.notes || res.observed || {}, wall_s: r2((performance.now() - t) / 1000) };
   } catch (e) { cats[cat] = { points: 0, max: MAX[cat], subs: [], observed: { error: String(e?.stack || e).slice(0, 400) } }; } finally { clearTimeout(to); }
 }
 await Promise.all([mod('legibility', 'legibility'), mod('coaching', 'coaching'), mod('reach', 'reach')]);

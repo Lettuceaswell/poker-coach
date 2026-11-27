@@ -38,7 +38,7 @@ export async function env(root, browser) {
     return p;
   }
   async function close() { for (const c of pages) await c.close().catch(() => {}); if (own) await own.close(); server.close(); }
-  return { url, page, close };
+  return { url, root: path.resolve(root), page, close };
 }
 // ---- DOM reads ----
 export const visBtns = (p, scope = 'body') => p.evaluate((sc) => {
@@ -61,28 +61,27 @@ export const featuresVisible = (p) => p.evaluate(() => [...document.querySelecto
 export const nums = (s) => (s.match(/\d+(?:\.\d+)?/g) || []);
 export const GATE = /unlock|upgrade|premium|paywall|subscribe|come back (later|tomorrow)|daily limit|limit reached|locked|pro only|go pro/i;
 export const approx = (a, b, tol) => Math.abs(a - b) <= tol;
-// Crawl menu: replay-able paths (list of [scope, index]) reaching each [data-feature]; depth 2.
+// Crawl menu once per root (cached): replay-able click paths (indices into visible buttons) reaching each [data-feature] and
+// each [data-judgment] type ("j:<type>"). Pages run in parallel batches; a wall budget bounds it (unreached = absent = 0).
 const CR = new Map();
-export async function crawl(E, maxTop = 9, maxSub = 7) {
-  if (CR.has(E.url)) return CR.get(E.url);
-  const found = {}; CR.set(E.url, found); const notes = [];
-  let p = await E.page(); const top = await visBtns(p); const nTop = Math.min(top.length, maxTop); await p._ctx.close();
-  for (let a = -1; a < nTop; a++) {
-    p = await E.page();
-    if (a >= 0) { await clickNth(p, 'body', a); }
-    for (const f of await featuresVisible(p)) if (!found[f]) found[f] = a < 0 ? [] : [a];
-    if (a >= 0 && Object.keys(found).length < 9) {
-      const sub = await visBtns(p); const n = Math.min(sub.length, maxSub);
-      for (let b = 0; b < n; b++) {
-        if (/close|back|menu|^$/i.test(sub[b].t) && !sub[b].t) continue;
-        const q = await E.page(); await clickNth(q, 'body', a); await clickNth(q, 'body', b);
-        for (const f of await featuresVisible(q)) if (!found[f]) found[f] = [a, b];
-        await q._ctx.close();
-      }
-    }
-    await p._ctx.close();
-  }
-  return found;
+export const judgmentsVisible = (p) => p.evaluate(() => [...document.querySelectorAll('[data-judgment]')].filter(e => e.checkVisibility() && e.getBoundingClientRect().height > 0).map(e => 'j:' + e.getAttribute('data-judgment')));
+export function crawl(E, { budgetMs = 22000, maxTop = 9, maxSub = 6, conc = 6 } = {}) {
+  if (CR.has(E.root)) return CR.get(E.root);
+  const pr = (async () => {
+    const found = {}; const t0 = Date.now(); const left = () => budgetMs - (Date.now() - t0);
+    const rec = async (p, path) => { for (const f of [...await featuresVisible(p), ...await judgmentsVisible(p)]) if (!found[f]) found[f] = path; };
+    const open = async (path) => { const p = await E.page(); for (const i of path) await clickNth(p, 'body', i); return p; };
+    const p0 = await E.page(); const top = await visBtns(p0); await rec(p0, []); await p0._ctx.close();
+    const jobs = []; for (let a = 0; a < Math.min(top.length, maxTop); a++) jobs.push(a);
+    const one = async (a) => {
+      if (left() <= 0) return; const p = await open([a]); await rec(p, [a]);
+      const sub = await visBtns(p); await p._ctx.close();
+      for (let b = 0; b < Math.min(sub.length, maxSub) && left() > 0; b++) { const q = await open([a, b]); await rec(q, [a, b]); await q._ctx.close(); }
+    };
+    let k = 0; await Promise.all(Array.from({ length: conc }, async () => { while (k < jobs.length && left() > 0) await one(jobs[k++]).catch(() => {}); }));
+    found._ms = Date.now() - t0; return found;
+  })();
+  CR.set(E.root, pr); return pr;
 }
 export async function replay(E, path, seed) { const p = await E.page(seed); for (const i of path) await clickNth(p, 'body', i); return p; }
 export const mixOf = (s) => { // parse "Action 63%" pairs
