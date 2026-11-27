@@ -15,6 +15,8 @@ await p.evaluate(() => { localStorage.clear(); });
 await p.reload();
 await p.screenshot({ path: 'shots/00-menu.png' });
 await p.evaluate(() => { window.__poker.settings.speed = 'fast'; });
+await p.click('#menuSettings'); await p.waitForTimeout(400); await p.screenshot({ path: 'shots/00b-menu-settings.png' });
+await p.click('#sheetBg', { position: { x: 20, y: 20 } }); await p.waitForTimeout(300);
 await p.click('#modeCash');
 const waitTurn = () => p.waitForSelector('#actions button[data-a="raise"], #actions button[data-a="call"], #actions button[data-a="check"]', { timeout: 30000 });
 let n = 0;
