@@ -57,6 +57,6 @@ Tests run by the rules category (8 LOG.md tools): rules-test, sim 300, coach-tes
 
 ## Baseline notes (orchestrator, 15:10)
 - The 3 baseline runs were taken on 4b145be, whose tools/score files are byte-identical to the freeze commit 41dabdc (the freeze commit only adds FROZEN.sha256, SCORE.md and runs/). The validator's fresh runs on 41dabdc scored 61.59, inside the spread.
-- Run 3's `test-failure` veto came from `tools/shoot.js` timing out in `waitTurn`. It is a pre-existing flaky test, not an app rule violation: it passed in runs 1–2, in a standalone rerun and in the validator's runs. It is listed as a known flake in TODO.md ("coach-shots can still flake").
+- Run 3's `test-failure` veto came from `tools/shoot.js` timing out in `waitTurn`. It is a pre-existing flaky test, not an app rule violation: it passed in runs 1–2, in a standalone rerun and in the validator's runs. TODO.md already lists browser-tool timing flakes (coach-shots); shoot.js has the same kind of timing wait.
 - MDE per contract = max(2 × total spread, 1.0). Literal spread with the flaked run = 21.72 (MDE 43.4, meaningless because it measures the veto, not the noise). Non-veto spread = 0.04 → **working MDE 1.0**. Rule: a candidate showing `test-failure` is re-run once; two failures in a row count as real.
 - Known weakness (validator, VAL-SCORE-005): the "visible progress over time" sub-score can be earned by static trend text. Accepted risk; the orchestrator inspects any candidate that gains that sub-score for real, data-driven trends before accepting.
