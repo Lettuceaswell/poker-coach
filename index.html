@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Poker Coach">
+<title>Poker Coach</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <button id="menuBtn" class="icon-btn" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+    </button>
+    <div id="blinds" class="blinds"></div>
+    <button id="unitBtn" class="unit-btn"></button>
+  </header>
+
+  <section id="seats"></section>
+
+  <section class="board-wrap">
+    <div id="board" class="board"></div>
+    <div class="pot-row"><span id="status" class="status"></span><span id="pot" class="pot"></span></div>
+  </section>
+
+  <section class="hero-bet-row"><span id="heroBet" class="bet-chip"></span></section>
+
+  <section id="actions" class="actions"></section>
+
+  <section class="hero-row">
+    <div id="heroCards" class="hero-cards"></div>
+    <div id="heroBox" class="hero-box">
+      <div id="heroHand" class="hero-hand"></div>
+      <div class="hero-ava-wrap"><div id="heroAva" class="hero-ava"></div><span id="heroDealer" class="dealer">D</span></div>
+      <div id="heroStack" class="hero-stack"></div>
+    </div>
+  </section>
+</div>
+
+<div id="sheetBg" class="sheet-bg"></div>
+<div id="raiseSheet" class="sheet">
+  <div class="grab"></div>
+  <div class="raise-amt"><span id="raiseVal"></span><small id="raiseUnit"></small></div>
+  <div id="presets" class="presets"></div>
+  <input id="raiseSlider" type="range" min="0" max="1000" step="1">
+  <button id="raiseGo" class="btn primary wide"></button>
+</div>
+
+<div id="settingsSheet" class="sheet">
+  <div class="grab"></div>
+  <div class="set-row"><span>Amounts</span><div class="seg" data-key="unit"><button data-v="bb">Big blinds</button><button data-v="chips">Chips</button></div></div>
+  <div class="set-row"><span>Deck</span><div class="seg" data-key="fourColor"><button data-v="false">2-color</button><button data-v="true">4-color</button></div></div>
+  <div class="set-row"><span>Players</span><div class="seg" data-key="seats"><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6</button></div></div>
+  <div class="set-row"><span>Speed</span><div class="seg" data-key="speed"><button data-v="slow">Relaxed</button><button data-v="normal">Normal</button><button data-v="fast">Fast</button></div></div>
+  <div class="set-row"><span>Table</span><div class="seg" data-key="felt"><button data-v="black">Black</button><button data-v="green">Green</button><button data-v="navy">Navy</button></div></div>
+  <div class="set-row stats"><span id="sessionStats"></span></div>
+  <button id="newTable" class="btn wide">New table</button>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
