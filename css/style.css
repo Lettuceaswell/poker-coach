@@ -161,7 +161,10 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 .pos.btn-pos { background: #f2f2f2; color: #000; border-color: #f2f2f2; }
 .seat.winner .pos { box-shadow: 0 0 0 3px var(--go), 0 0 24px rgba(62, 230, 160, .45); }
 .seat.acting .pos { border-color: var(--go); }
-.seat .timer { position: absolute; top: -6px; right: -12px; margin: 0; width: 22px; height: 22px; }
+.seat .timer { position: absolute; inset: -6px; width: auto; height: auto; margin: 0; border-radius: 50%; visibility: hidden;
+  background: conic-gradient(var(--go) calc(var(--p, 0) * 1turn), rgba(62, 230, 160, .12) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); }
 .hero-pos { width: 56px; height: 56px; font-size: 15px; }
 .top-right { display: flex; align-items: center; gap: 2px; }
 .icon-btn.gear { margin: 0 -10px 0 0; color: var(--dim); }
@@ -196,7 +199,8 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 
 /* die + recommended action */
 .die { display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 4px; margin-right: 7px; border-radius: 6px;
-  background: #f2f2f2; color: #000; font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; vertical-align: 1px; animation: roll .35s ease-out; }
+  background: #f2f2f2; color: #000; font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; vertical-align: 1px; }
+.die.anim { animation: roll .45s cubic-bezier(.2,1.5,.4,1); }
 @keyframes roll { 0% { transform: rotate(-90deg) scale(.6); opacity: .2; } 100% { transform: none; opacity: 1; } }
 .coach b.picked { text-decoration: underline; text-underline-offset: 3px; }
 .btn.rec { border-color: var(--go); box-shadow: 0 0 0 1px var(--go), 0 0 18px rgba(62, 230, 160, .35); color: #fff; }
@@ -208,3 +212,96 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 .meter { position: relative; flex: 0 0 70px; height: 4px; border-radius: 2px; background: #26262a; overflow: hidden; }
 .meter i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--go); transition: width .2s; }
 .meter-text { font-size: 11.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ===== design pass ===== */
+/* bet chips lean toward the middle of the table */
+.seat .bet-chip { transform: translateX(var(--dx, 0)); }
+.bet-chip { box-shadow: inset 0 0 0 1.5px rgba(245, 225, 74, .18); }
+
+/* the button pulses; a sweep runs through the seats in acting order */
+.pos { position: relative; background: #0c0c0e; }
+.pos.btn-pos { animation: btnPulse 2.8s ease-in-out infinite; }
+@keyframes btnPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0), 0 0 8px rgba(255, 255, 255, .18); }
+  50% { box-shadow: 0 0 0 5px rgba(255, 255, 255, .10), 0 0 22px rgba(255, 255, 255, .42); }
+}
+.pos.sweep { animation: sweep .62s ease-out both; }
+@keyframes sweep {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.1); border-color: #9cc3ff; box-shadow: 0 0 0 3px rgba(156, 195, 255, .25), 0 0 20px rgba(156, 195, 255, .55); }
+  100% { transform: scale(1); }
+}
+.pos.btn-pos.sweep { animation: sweep .62s ease-out both, btnPulse 2.8s ease-in-out .62s infinite; }
+
+/* your turn */
+.hero-box { transition: border-color .25s, box-shadow .25s; }
+.hero-box.turn { border-color: rgba(62, 230, 160, .7); animation: turnGlow 2s ease-in-out infinite; }
+@keyframes turnGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(62, 230, 160, 0); } 50% { box-shadow: 0 0 22px rgba(62, 230, 160, .22); } }
+
+/* chips and pot in flight */
+.fly-chip { position: fixed; z-index: 40; pointer-events: none; min-width: 34px; height: 34px; padding: 0 10px; border-radius: 999px;
+  display: grid; place-items: center; background: #1c1c1e; color: var(--chip); font: 600 15px var(--font); font-variant-numeric: tabular-nums;
+  transition: transform .45s cubic-bezier(.4, 0, .2, 1), opacity .45s ease-in; box-shadow: 0 4px 14px rgba(0, 0, 0, .5); }
+.fly-chip.big { background: var(--chip); color: #000; font-size: 17px; height: 38px; transition-duration: .5s; }
+
+/* showdown: the winning five light up, the rest of the board dims */
+.board .card { transition: filter .3s, box-shadow .3s, transform .3s; }
+.card.hilite { box-shadow: 0 0 0 3px var(--go), 0 0 18px rgba(62, 230, 160, .45); transform: translateY(-3px); }
+.card.lowlite { filter: brightness(.45) saturate(.6); }
+.mini .card.hilite { transform: none; box-shadow: 0 0 0 2px var(--go); }
+
+/* stable coach panel so the layout never jumps */
+.status { min-height: 62px; }
+.pot { font-weight: 300; letter-spacing: -.01em; }
+.next-btn { font-weight: 600; }
+
+/* frosted sheets (design-ideas: frosted glass) */
+.sheet { background: rgba(20, 20, 23, .78); -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5); }
+.sheet-bg { background: rgba(0, 0, 0, .35); }
+
+/* tap targets: 44pt minimum where it matters */
+.quick button { height: 40px; }
+.seg button { height: 36px; }
+
+/* last action label fades in */
+.seat .nm { transition: color .2s; }
+.bet-chip.won { position: static; color: #000; background: var(--go); animation: wonPop .5s cubic-bezier(.2, 1.6, .4, 1) both; font-weight: 700; }
+@keyframes wonPop { from { transform: translateY(8px) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* shown cards sit on the position circle */
+.ava-wrap .mini { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; height: 46px; gap: 2px; z-index: 2; }
+.ava-wrap .mini .card { width: 32px; height: 46px; box-shadow: 0 2px 10px rgba(0, 0, 0, .6); }
+.ava-wrap .mini .card:first-child { transform: rotate(-6deg); }
+.ava-wrap .mini .card:last-child { transform: rotate(6deg); }
+.ava-wrap .mini .card.hilite { box-shadow: 0 0 0 2px var(--go), 0 2px 10px rgba(0, 0, 0, .6); }
+
+/* fixed-height coach panel: buttons never move while the solver updates */
+.pot-row { height: 70px; min-height: 0; overflow: hidden; }
+.status { min-height: 0; }
+
+/* short screens (iPhone SE / mini, landscape-ish) */
+@media (max-height: 760px) {
+  #seats { min-height: 190px; }
+  .pos { width: 50px; height: 50px; font-size: 14px; }
+  .seat .nm { margin-top: 5px; font-size: 13px; }
+  .seat .stk { font-size: 16px; }
+  .seat .bet-chip { height: 28px; min-width: 30px; font-size: 14px; margin-top: 4px; }
+  .board .card { aspect-ratio: .78; }
+  .board .card .rk { font-size: clamp(22px, 7.5vw, 34px); }
+  .board .card .st { font-size: clamp(18px, 6vw, 28px); }
+  .hero-bet-row { height: 40px; }
+  .actions { height: 54px; margin-bottom: 14px; }
+  .btn { height: 54px; font-size: 18px; }
+  .btn.sq { flex-basis: 54px; }
+  .hero-row { height: 128px; }
+  .hero-cards .card .rk { font-size: 46px; }
+  .hero-cards .card .st { font-size: 32px; }
+  .hero-box { padding: 8px 6px; border-radius: 22px; }
+  .hero-pos { width: 44px; height: 44px; font-size: 13px; }
+  .hero-stack { font-size: 24px; }
+  .pot { font-size: 28px; }
+}

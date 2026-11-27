@@ -40,7 +40,7 @@ export function mapSpot(game) {
   const me = game.players[game.toAct];
   const others = game.players.filter(p => !p.out && p !== me).map(p => p.stack + p.totalIn);
   const eff = Math.min(me.stack + me.totalIn, Math.max(...others)) / game.bb;
-  if (eff < 60 || eff > 200) soften(`${Math.round(eff)} BB deep`);
+  if (eff < 70 || eff > 150) soften(`${Math.round(eff)} BB deep`);
 
   for (const h of game.history) {
     if (h.street !== 'preflop') break;
