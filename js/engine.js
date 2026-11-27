@@ -213,6 +213,22 @@ export class Game {
     this.result = { winners, showdown: true };
   }
 
+  // Position name for each seat this hand ('' for anyone sitting out).
+  positions() {
+    const NAMES = { 2: ['BTN', 'BB'], 3: ['BTN', 'SB', 'BB'], 4: ['BTN', 'SB', 'BB', 'CO'],
+      5: ['BTN', 'SB', 'BB', 'HJ', 'CO'], 6: ['BTN', 'SB', 'BB', 'UTG', 'HJ', 'CO'] };
+    const out = this.players.map(() => '');
+    const live = (q) => !q.out;
+    const n = this.players.filter(live).length;
+    if (n < 2 || this.button < 0) return out;
+    let i = this.button;
+    for (let k = 0; k < n; k++) {
+      out[i] = NAMES[n][k];
+      i = this.next(i, live);
+    }
+    return out;
+  }
+
   seatDist(p) {
     const n = this.players.length;
     return (this.players.indexOf(p) - this.button + n - 1) % n;

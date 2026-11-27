@@ -19,7 +19,7 @@ function save() {
     settings, session, hintsLeft,
     table: {
       button: game.button,
-      players: game.players.map(p => ({ name: p.name, avatar: p.avatar, persona: p.persona, stack: p.stack, isHero: !!p.isHero, isBot: !!p.isBot })),
+      players: game.players.map(p => ({ name: p.name, persona: p.persona, stack: p.stack, isHero: !!p.isHero, isBot: !!p.isBot })),
     },
   }));
 }
@@ -33,7 +33,7 @@ function seatTable(restore) {
     for (const p of restore.players) game.addPlayer({ ...p });
     game.button = Math.min(restore.button ?? -1, game.players.length - 1);
   } else {
-    game.addPlayer({ name: 'You', avatar: '🧔', stack: START, isHero: true });
+    game.addPlayer({ name: 'You', stack: START, isHero: true });
     const taken = new Set();
     for (let i = 1; i < settings.seats; i++) game.addPlayer({ ...makeBot(taken), stack: START });
     game.button = Math.floor(Math.random() * game.players.length) - 1;
@@ -41,7 +41,7 @@ function seatTable(restore) {
 }
 
 function refill() {
-  const taken = new Set(game.players.map(p => p.name).concat(game.players.map(p => p.avatar)));
+  const taken = new Set(game.players.map(p => p.name));
   game.players.forEach((p, i) => {
     if (p.isHero) {
       if (p.stack < BB) { p.stack = START; session.buyins++; }
@@ -118,6 +118,7 @@ function render() {
   const order = opps.map(i => (i - heroI + ps.length) % ps.length).sort((a, b) => a - b).map(k => (k + heroI) % ps.length);
   const spots = SPOTS[order.length] || SPOTS[5];
   const wins = winnersSet();
+  const pos = game.positions();
 
   $('seats').innerHTML = order.map((i, k) => {
     const p = ps[i];
@@ -131,8 +132,8 @@ function render() {
       : `<span class="bet-chip">${p.bet ? num(p.bet) : ''}</span>`;
     return `<div class="${cls}" id="seat-${i}" style="left:${x}%;top:${y}%">
       ${w ? `<span class="won">+${num(w.amount)}</span>` : ''}
-      <div class="ava-wrap"><div class="ava">${p.avatar}</div><span class="dealer ${game.button === i ? 'on' : ''}">D</span>
-        <div class="timer" style="position:absolute;top:-4px;right:-10px;margin:0"></div></div>
+      <div class="ava-wrap"><div class="pos ${pos[i] === 'BTN' ? 'btn-pos' : ''}">${pos[i]}</div>
+        <div class="timer"></div></div>
       ${label}
       <span class="stk">${num(p.stack)}</span>
       ${below}
@@ -161,8 +162,8 @@ function render() {
   // hero
   const h = hero();
   $('heroBet').textContent = h.bet ? num(h.bet) : '';
-  $('heroAva').textContent = h.avatar;
-  $('heroDealer').classList.toggle('on', game.button === heroI);
+  $('heroPos').textContent = pos[heroI];
+  $('heroPos').classList.toggle('btn-pos', pos[heroI] === 'BTN');
   $('heroStack').textContent = num(h.stack);
   $('heroHand').textContent = h.cards.length ? describe([...h.cards, ...(h.folded ? [] : b)]) : '';
   $('heroBox').classList.toggle('winner', wins.has(heroI));
@@ -176,6 +177,7 @@ function renderHeroCards(h) {
   if (key !== heroKey) {
     heroKey = key;
     el.className = 'hero-cards';
+    el.style.transform = ''; el.style.opacity = '';
     el.innerHTML = h.cards.map(c => cardHTML(c, 'deal')).join('') + '<span class="hint">swipe up to fold</span>';
   }
   el.classList.toggle('mucked', h.folded && !h.out);
@@ -375,7 +377,7 @@ document.querySelectorAll('.sheet').forEach(sh => {
 });
 
 // ---------- settings ----------
-$('menuBtn').addEventListener('click', () => { applySettings(); $('settingsSheet').classList.add('on'); $('sheetBg').classList.add('on'); });
+$('gearBtn').addEventListener('click', () => { applySettings(); $('settingsSheet').classList.add('on'); $('sheetBg').classList.add('on'); });
 $('unitBtn').addEventListener('click', () => { settings.unit = settings.unit === 'bb' ? 'chips' : 'bb'; applySettings(); render(); save(); });
 document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
@@ -393,42 +395,57 @@ $('newTable').addEventListener('click', () => {
   nextResolve?.();
 });
 
-// ---------- swipe to fold ----------
+// ---------- swipe to fold: the cards follow your finger ----------
 (() => {
   const el = $('heroCards');
-  let y0 = null, dy = 0, id = null;
-  const canSwipe = () => { const h = hero(); return !game.handOver && h.cards.length && !h.folded; };
-  el.addEventListener('pointerdown', (e) => {
-    if (!canSwipe()) return;
-    y0 = e.clientY; dy = 0; id = e.pointerId;
-    el.setPointerCapture(id);
+  let start = null, dx = 0, dy = 0;
+  const canSwipe = () => { const h = hero(); return !game.handOver && h.cards.length && !h.folded && !paused; };
+  const begin = (x, y) => {
+    if (!canSwipe()) return false;
+    start = { x, y }; dx = 0; dy = 0;
     el.classList.add('dragging');
-  });
-  el.addEventListener('pointermove', (e) => {
-    if (y0 === null || e.pointerId !== id) return;
-    dy = Math.min(0, e.clientY - y0);
-    el.querySelectorAll('.card').forEach((c, k) => { c.style.transform = `translateY(${dy}px) rotate(${dy / (k ? 30 : -40)}deg)`; c.style.opacity = String(1 + dy / 260); });
-  });
-  const end = () => {
-    if (y0 === null) return;
-    el.classList.remove('dragging');
-    el.querySelectorAll('.card').forEach(c => { c.style.transform = ''; c.style.opacity = ''; });
-    const swiped = dy < -70, tapped = Math.abs(dy) < 6;
-    y0 = null;
-    if (swiped) {
-      if (heroTurn) {
-        hintsLeft = Math.max(0, hintsLeft - 1);
-        el.classList.add('flyaway');
-        setTimeout(() => heroAct('fold'), 180);
-      } else {
-        pre = 'checkfold'; render();
-      }
-    } else if (tapped && pre === 'checkfold') {
-      pre = null; render();
-    }
+    return true;
   };
-  el.addEventListener('pointerup', end);
-  el.addEventListener('pointercancel', end);
+  const move = (x, y) => {
+    if (!start) return;
+    dx = x - start.x; dy = y - start.y;
+    // free movement, a little resistance downward
+    const ty = dy > 0 ? dy * 0.35 : dy;
+    el.style.transform = `translate(${dx}px, ${ty}px) rotate(${dx / 14}deg)`;
+    el.style.opacity = String(Math.max(0.35, 1 + Math.min(0, dy) / 320));
+  };
+  const finish = () => {
+    if (!start) return;
+    start = null;
+    el.classList.remove('dragging');
+    const swiped = dy < -70, tapped = Math.hypot(dx, dy) < 8;
+    if (swiped && heroTurn) {
+      hintsLeft = Math.max(0, hintsLeft - 1);
+      // keep flying the way the finger threw them
+      const k = 700 / Math.max(1, Math.hypot(dx, dy));
+      el.style.transition = 'transform .28s ease-in, opacity .28s ease-in';
+      el.style.transform = `translate(${dx * k}px, ${dy * k}px) rotate(${dx / 6}deg)`;
+      el.style.opacity = '0';
+      setTimeout(() => { el.style.transition = ''; heroAct('fold'); }, 230);
+      return;
+    }
+    el.style.transition = 'transform .3s cubic-bezier(.2,1.4,.4,1), opacity .3s';
+    el.style.transform = ''; el.style.opacity = '';
+    setTimeout(() => { el.style.transition = ''; }, 320);
+    if (swiped) { pre = 'checkfold'; render(); }
+    else if (tapped && pre === 'checkfold') { pre = null; render(); }
+  };
+  el.addEventListener('touchstart', (e) => { if (begin(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault(); }, { passive: false });
+  el.addEventListener('touchmove', (e) => { if (start) { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: false });
+  el.addEventListener('touchend', finish);
+  el.addEventListener('touchcancel', finish);
+  // mouse (desktop / tests)
+  el.addEventListener('mousedown', (e) => {
+    if (!begin(e.clientX, e.clientY)) return;
+    const mm = (ev) => move(ev.clientX, ev.clientY);
+    const mu = () => { window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', mu); finish(); };
+    window.addEventListener('mousemove', mm); window.addEventListener('mouseup', mu);
+  });
 })();
 
 // ---------- game loop ----------
@@ -450,6 +467,20 @@ async function think(i) {
   });
 }
 
+// menu pauses the table
+let paused = true;
+let resumeGate = null;
+const gate = () => (paused ? new Promise(r => { resumeGate = r; }) : null);
+
+// after you fold, the rest of the hand resolves instantly
+function fastForward() {
+  let guard = 0;
+  while (!game.handOver && guard++ < 500) {
+    const d = decide(game, game.toAct);
+    game.act(d.type, d.to);
+  }
+}
+
 async function loop() {
   for (;;) {
     if (resetRequested) {
@@ -462,6 +493,7 @@ async function loop() {
     const h0 = hero();
     const startStack = h0.stack;
     save();
+    await gate();
     game.startHand();
     pre = null;
     let street = game.street;
@@ -469,6 +501,8 @@ async function loop() {
     render();
     await sleep(350);
     while (!game.handOver && !resetRequested) {
+      await gate();
+      if (hero().folded) { fastForward(); break; }
       const i = game.toAct;
       const p = game.players[i];
       if (p.isHero) {
@@ -508,17 +542,41 @@ async function loop() {
     acting = -1;
     session.hands++;
     session.net += hero().stack - startStack;
-    render();
     save();
+    if (hero().folded) { await sleep(150); await gate(); continue; }
+    render();
     const wait = game.result?.showdown ? 3200 : 1700;
     await Promise.race([sleep(settings.speed === 'fast' ? wait * 0.6 : wait), new Promise(r => { nextResolve = r; })]);
     nextResolve = null;
+    await gate();
   }
 }
+
+// ---------- menu ----------
+function showMenu() {
+  paused = true;
+  closeSheets();
+  const h = game.players.find(p => p.isHero);
+  const net = session.net / BB;
+  $('modeSub').textContent = session.hands
+    ? `${game.players.length} players · ${session.hands} hands · ${net >= 0 ? '+' : ''}${net.toFixed(1)} BB`
+    : `No-Limit Hold'em · 100 BB · ${settings.seats} players`;
+  $('menu').classList.add('on');
+}
+function play() {
+  $('menu').classList.remove('on');
+  paused = false;
+  render();
+  resumeGate?.(); resumeGate = null;
+}
+$('backBtn').addEventListener('click', showMenu);
+$('modeCash').addEventListener('click', play);
+$('menuSettings').addEventListener('click', () => { applySettings(); $('settingsSheet').classList.add('on'); $('sheetBg').classList.add('on'); });
 
 // ---------- boot ----------
 seatTable(saved.table);
 applySettings();
+showMenu();
 loop();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
@@ -526,4 +584,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // test hook
-window.__poker = { game: () => game, settings };
+window.__poker = { game: () => game, settings, play };

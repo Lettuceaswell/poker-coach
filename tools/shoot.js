@@ -13,7 +13,9 @@ p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 
 await p.goto('http://127.0.0.1:8765/');
 await p.evaluate(() => { localStorage.clear(); });
 await p.reload();
+await p.screenshot({ path: 'shots/00-menu.png' });
 await p.evaluate(() => { window.__poker.settings.speed = 'fast'; });
+await p.click('#modeCash');
 const waitTurn = () => p.waitForSelector('#actions button[data-a="raise"], #actions button[data-a="call"], #actions button[data-a="check"]', { timeout: 30000 });
 let n = 0;
 const shot = async (name) => p.screenshot({ path: `shots/${String(++n).padStart(2, '0')}-${name}.png` });
@@ -37,7 +39,7 @@ for (let k = 0; k < 120 && !showdown; k++) {
   }
   await p.waitForTimeout(150);
 }
-await p.click('#menuBtn'); await p.waitForTimeout(400); await shot('settings');
+await p.click('#gearBtn'); await p.waitForTimeout(400); await shot('settings');
 await p.click('.seg[data-key="fourColor"] button[data-v="true"]');
 await p.click('.seg[data-key="seats"] button[data-v="4"]');
 await p.click('#sheetBg', { position: { x: 20, y: 20 } });

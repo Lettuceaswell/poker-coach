@@ -14,9 +14,6 @@ const NAMES = ['riverrat', 'kev_22', 'jess.b', 'nitbot', 'lucky7', 'mo_money', '
   'chipz', 'turbo_tom', 'lindz', 'dee.dee', 'Porkchop', 'mr_fold', 'cardsharkk', 'tilted_tina',
   'gutshot_g', 'sammie', 'potlord', 'jjforlife', 'r0ckstar', 'busterb', 'ally_cat', 'nuts_or_bust',
   'grandpa_joe', 'sunnyside', 'kingkongg', 'velvet', 'el_gato', 'hotdog_hal'];
-const AVATARS = ['🐶', '🦊', '🐻', '🐼', '🐯', '🦁', '🐸', '🐵', '🐙', '🦉', '🐺', '🐷', '🐰',
-  '🐨', '🐮', '🦝', '🧔', '👩', '👨‍🦱', '👩‍🦰', '👱', '👴', '👵', '🧑‍🦲', '🤠', '😎'];
-
 export function makeBot(taken = new Set(), rng = Math.random) {
   const pick = (arr) => {
     const free = arr.filter(x => !taken.has(x));
@@ -26,7 +23,6 @@ export function makeBot(taken = new Set(), rng = Math.random) {
   };
   return {
     name: pick(NAMES),
-    avatar: pick(AVATARS),
     persona: PERSONA_KEYS[Math.floor(rng() * PERSONA_KEYS.length)],
     isBot: true,
   };
