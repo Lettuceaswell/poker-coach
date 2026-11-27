@@ -1,0 +1,7 @@
+--- z2-base/css/style.css	2026-11-27 17:11:07.269925254 -0600
++++ z2-A/css/style.css	2026-11-27 17:22:42.224510219 -0600
+@@ -470,3 +470,4 @@
+ .pg-best { margin-top: 6px; color: #d4af37; font-weight: 700; font-size: 13px; }
+ .pg-mini { margin-top: 14px; font-size: 13px; color: #aaa; }
+ .pg-mini:empty { display: none; }
++.seat .bet-chip{margin-top:-90px !important;position:relative;z-index:5}

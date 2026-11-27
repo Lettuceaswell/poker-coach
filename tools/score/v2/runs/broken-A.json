@@ -1,0 +1,292 @@
+{
+  "total": 9.48,
+  "raw_total": 9.48,
+  "capped": false,
+  "vetoes": [],
+  "categories": {
+    "accuracy": {
+      "points": 0,
+      "max": 20,
+      "subs": [],
+      "observed": {
+        "skipped": "--no-v1"
+      }
+    },
+    "speed": {
+      "points": 0,
+      "max": 10,
+      "subs": [],
+      "observed": {
+        "skipped": "--no-v1"
+      }
+    },
+    "learning": {
+      "points": 0,
+      "max": 20,
+      "subs": [],
+      "observed": {
+        "skipped": "--no-v1"
+      }
+    },
+    "reach": {
+      "points": 0,
+      "max": 15,
+      "subs": [
+        {
+          "name": "library",
+          "points": 0,
+          "max": 1.6666666666666667
+        },
+        {
+          "name": "review",
+          "points": 0,
+          "max": 1.6666666666666667
+        },
+        {
+          "name": "custom-solve",
+          "points": 0,
+          "max": 1.6666666666666667
+        },
+        {
+          "name": "report",
+          "points": 0,
+          "max": 1.6666666666666667
+        },
+        {
+          "name": "nodelock",
+          "points": 0,
+          "max": 1.6666666666666667
+        },
+        {
+          "name": "multiway",
+          "points": 0,
+          "max": 1.6666666666666667
+        },
+        {
+          "name": "export",
+          "points": 0,
+          "max": 1.6666666666666667
+        },
+        {
+          "name": "stacks",
+          "points": 0,
+          "max": 1.6666666666666667
+        },
+        {
+          "name": "trainer",
+          "points": 0,
+          "max": 1.6666666666666667
+        }
+      ],
+      "observed": {},
+      "wall_s": 26.75
+    },
+    "coaching": {
+      "points": 0,
+      "max": 15,
+      "subs": [
+        {
+          "name": "types.calibration",
+          "points": 0,
+          "max": 2.25
+        },
+        {
+          "name": "types.drill-preflop",
+          "points": 0,
+          "max": 2.25
+        },
+        {
+          "name": "types.drill-postflop",
+          "points": 0,
+          "max": 2.25
+        },
+        {
+          "name": "types.quiz",
+          "points": 0,
+          "max": 2.25
+        },
+        {
+          "name": "fade",
+          "points": 0,
+          "max": 3
+        },
+        {
+          "name": "reward",
+          "points": 0,
+          "max": 3
+        }
+      ],
+      "observed": {},
+      "wall_s": 41.12
+    },
+    "legibility": {
+      "points": 9.48,
+      "max": 20,
+      "subs": [
+        {
+          "name": "bet-chip overlap",
+          "points": 3,
+          "max": 4,
+          "observed": {
+            "hands": 32,
+            "handsByCombo": "3/4/5/6 seats x 390x844,360x740 x 4",
+            "chips_observed": 100,
+            "violations": 25,
+            "polls": 1361,
+            "worst": [
+              "seat-4 overlaps pos (9)",
+              "seat-4 overlaps pos (27)",
+              "seat-3 overlaps pos (16.5)",
+              "seat-3 overlaps pos (0.5)",
+              "seat-4 overlaps pos (1)",
+              "seat-3 opacity (0.38)"
+            ],
+            "formula": "min(1,chips/30) * (1 - min(1, violations/chips))"
+          }
+        },
+        {
+          "name": "position highlight",
+          "points": 2.333,
+          "max": 4,
+          "observed": {
+            "combos_measured": 8,
+            "later_run_measured": 7,
+            "tally": {
+              "order": 6,
+              "stay": 0,
+              "allLit": 0,
+              "laps3": 8,
+              "btnOnly": 7,
+              "later2": 7
+            },
+            "per_property_formula": "each of 6 properties = combos passing / 8; sub-score = mean",
+            "detail": [
+              "5p@390: run1 order=false stay=false allLit=false laps=3 btnOnly=false; run2 none; period=51ms",
+              "3p@360: run1 order=true stay=false allLit=false laps=3 btnOnly=true; run2 laps=2 btnOnly=true; period=50ms",
+              "3p@390: run1 order=true stay=false allLit=false laps=3 btnOnly=true; run2 laps=2 btnOnly=true; period=50ms",
+              "4p@360: run1 order=true stay=false allLit=false laps=3 btnOnly=true; run2 laps=2 btnOnly=true; period=50ms",
+              "4p@390: run1 order=true stay=false allLit=false laps=3 btnOnly=true; run2 laps=2 btnOnly=true; period=50ms",
+              "5p@360: run1 order=true stay=false allLit=false laps=3 btnOnly=true; run2 laps=2 btnOnly=true; period=50ms",
+              "6p@360: run1 order=true stay=false allLit=false laps=3 btnOnly=true; run2 laps=2 btnOnly=true; period=50ms",
+              "6p@390: run1 order=false stay=false allLit=false laps=3 btnOnly=true; run2 laps=2 btnOnly=true; period=50ms"
+            ]
+          }
+        },
+        {
+          "name": "min font size >= 13px",
+          "points": 0.023,
+          "max": 3,
+          "observed": {
+            "violations_unique": 167,
+            "items_checked": 848,
+            "screens_measured": 24,
+            "named_screens_covered": "10/10",
+            "missing_named": [],
+            "worst": [
+              "i \"AA\" 8.58 @crawl:modeDrills>Fold",
+              "i \"AKs\" 8.58 @crawl:modeDrills>Fold",
+              "i \"AQs\" 8.58 @crawl:modeDrills>Fold",
+              "i \"AJs\" 8.58 @crawl:modeDrills>Fold",
+              "i \"ATs\" 8.58 @crawl:modeDrills>Fold",
+              "i \"A9s\" 8.58 @crawl:modeDrills>Fold"
+            ],
+            "formula": "(0.5*(1-min(1,V/5)) + 0.5*(1-min(1,V/max(5,0.2*N)))) * named_screens_covered/10; content text <13 px unless in legibility-exempt.json"
+          }
+        },
+        {
+          "name": "WCAG AA contrast",
+          "points": 1.42,
+          "max": 3,
+          "observed": {
+            "violations_unique": 9,
+            "items_checked": 848,
+            "screens_measured": 24,
+            "named_screens_covered": "10/10",
+            "missing_named": [],
+            "worst": [
+              "span.nm.last-fold \"Fold\" 1.43 @table-heroturn 3p@390",
+              "div.pos.btn-pos.sweep-btn \"BTN\" 2.64 @table-heroturn 4p@390",
+              "span.bet-chip \"0.5\" 2.95 @table-heroturn 4p@360",
+              "div.pos.sweep \"SB\" 3.1 @table-heroturn 4p@360",
+              "span.stk \"100\" 3.14 @table-heroturn 3p@390",
+              "span.stk \"99.5\" 3.14 @table-heroturn 4p@360"
+            ],
+            "formula": "(0.5*(1-min(1,V/5)) + 0.5*(1-min(1,V/max(5,0.2*N)))) * named_screens_covered/10; 4.5:1 (3:1 large) vs composited ancestor backgrounds (gradients/images ignored)"
+          }
+        },
+        {
+          "name": "tap targets >= 44x44",
+          "points": 0.325,
+          "max": 3,
+          "observed": {
+            "violations_unique": 34,
+            "items_checked": 217,
+            "screens_measured": 24,
+            "named_screens_covered": "10/10",
+            "missing_named": [],
+            "worst": [
+              "#unitBtn.unit-btn \"BB\" 44x30 @table-heroturn 3p@360",
+              "button \"2x\" 46x40 @table-heroturn 3p@360",
+              "button.on \"2.5x\" 59x40 @table-heroturn 3p@360",
+              "button \"3x\" 46x40 @table-heroturn 3p@360",
+              "button \"3.5x\" 58x40 @table-heroturn 3p@360",
+              "button \"4x\" 46x40 @table-heroturn 3p@360"
+            ],
+            "formula": "(0.5*(1-min(1,V/5)) + 0.5*(1-min(1,V/max(5,0.2*N)))) * named_screens_covered/10; visible topmost button/control box"
+          }
+        },
+        {
+          "name": "no clipped / overflowing text",
+          "points": 2.382,
+          "max": 3,
+          "observed": {
+            "violations_unique": 2,
+            "items_checked": 848,
+            "screens_measured": 24,
+            "named_screens_covered": "10/10",
+            "missing_named": [],
+            "worst": [
+              "button \"5x\" outside viewport x @table-heroturn 3p@390",
+              "button \"6x\" outside viewport x @table-heroturn 6p@390"
+            ],
+            "formula": "(0.5*(1-min(1,V/5)) + 0.5*(1-min(1,V/max(5,0.2*N)))) * named_screens_covered/10; text box beyond an overflow-hidden ancestor or the viewport"
+          }
+        }
+      ],
+      "observed": {
+        "exemptSha256": "9fd62a089665a2a415c1dbba0b81622907c2910d7de1d412ab2f6ddec33299d7",
+        "crawled": [
+          "crawl:modeDrills",
+          "crawl:modeDrills>Fold",
+          "crawl:modeDrills>Raise 2.5",
+          "crawl:menuHands",
+          "crawl:menuLeaks",
+          "crawl:menuSettings",
+          "crawl:menuProgress"
+        ],
+        "noResult_3p@360": "hand not finished in 28 s",
+        "noResult_3p@390": "hand not finished in 28 s",
+        "noResult_4p@360": "hand not finished in 28 s",
+        "noResult_4p@390": "hand not finished in 28 s",
+        "noResult_5p@360": "hand not finished in 28 s",
+        "noResult_6p@360": "hand not finished in 28 s",
+        "noResult_6p@390": "hand not finished in 28 s",
+        "seconds": 41.4,
+        "screens": 18
+      },
+      "wall_s": 41.69
+    }
+  },
+  "v1": null,
+  "notes": {
+    "no_v1": "quick mode: accuracy/speed/learning not measured (0)"
+  },
+  "only": null,
+  "no_v1": true,
+  "seed": 20261127,
+  "root": "/tmp/z2-A",
+  "git_head": "31a9280856d759dce602b530423fbad0930d4925",
+  "dirty": true,
+  "wall_s": 41.71,
+  "node": "v26.12.0"
+}

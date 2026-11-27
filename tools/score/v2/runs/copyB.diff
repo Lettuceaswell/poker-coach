@@ -1,0 +1,11 @@
+--- z2-base/js/app.js	2026-11-27 17:11:07.274033667 -0600
++++ z2-B/js/app.js	2026-11-27 17:22:42.226689893 -0600
+@@ -1213,7 +1213,7 @@
+       <div class="calrow"><span class="calval">${lo}% – ${hi}%</span><button class="btn small-btn reveal"${a ? ' disabled' : ''}>Reveal</button></div>
+       <p class="calres small">${a ? resultText(a) : ''}</p></div>`;
+   }).join('');
+-  function resultText(a) { return `${a.hit ? '<b class="up">Inside your range.</b>' : '<b class="down">Outside your range.</b>'} The answer was ${a.truth}%.`; }
++  function resultText(a) { return ''; }
+   function verdictHTML() {
+     const n = rv.answers.need, e = rv.answers.eq;
+     if (!d0 || !n || (qs.length > 1 && !e)) return '';
