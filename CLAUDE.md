@@ -26,5 +26,5 @@ You are an expert no-limit hold'em coach and an expert solver builder. Your goal
 - Read `LOG.md` (what exists, how to test), `TODO.md` (ranked next steps) and `SPEC.md` (feature decisions, including the rejected list) before changing anything.
 - Pitch new features with the Feature Swipe skill and record the verdicts in `SPEC.md`.
 - Run the test tools listed in `LOG.md` before you call something done. Commit and push to `main` to ship, and bump `CACHE` in `sw.js`.
-- Green means only the coach's pick. Swipe-to-fold stays. No runtime AI or paid APIs; the phone does the live solving, the PC does the overnight solves.
+- Green means the coach's pick, plus grade chips and +BB results in review panels (Levi, 2026-11-27). Swipe-to-fold stays. No runtime AI or paid APIs; the phone does the live solving, the PC does the overnight solves.
 - Update `LOG.md` and `TODO.md` as you go.

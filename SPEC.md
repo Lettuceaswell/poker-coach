@@ -44,4 +44,4 @@ Kept:
 Rejected:
 - Flat OOP limped-pot realization haircut (SB limp 56->45%, still far from ~0%; BTN worse).
 
-Open for Levi: the base app uses green on grade chips and +BB in the panel; the rule says green is only the coach's pick.
+Decided by Levi 2026-11-27: grade chips and +BB in review panels stay green. Also yes to: the overnight calibrated-preflop solve (TODO #1), overnight flop drill spots, and a reward moment after drill answers if it serves learning.
