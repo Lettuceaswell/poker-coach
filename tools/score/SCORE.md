@@ -44,3 +44,19 @@ The base app uses `--go` green for `#panel .up` (positive BB), `#panel .dot.g` a
 | wall s | 141.22 | 140.69 | 140.63 | |
 
 Run 3 hit a veto `test-failure`: `node tools/shoot.js` timed out in `waitTurn` (30 s, unseeded app-side test, flaky; passed in runs 1-2 and in a standalone rerun) so the total was capped at 40. Excluding that flake, total spread is 0.04 (runs 1-2) so **MDE = max(2 x 0.04, 1.0) = 1.00**. Taken literally with the outlier, MDE = 43.44, which is meaningless; treat 1.00 as the working MDE, and re-run any candidate that shows a `test-failure` veto before judging it. Non-veto noise: speed spread 0.10, accuracy 0.02, learning 0.00. Vetoes: 0,0,1 (shoot flake). Each run ~142 s wall (< 200 s budget, no reduction needed).
+
+## Accuracy, speed and rules (tests) criteria (solver-checks.js / app-score.js)
+- Points: accuracy 30 = preflop 15 (7 spots, bands in fixtures/score-constants.json, falloff 8 pp) + postflop 15 (3 river + 2 turn, 3 pts each, fixed wall budget river 250 ms / turn 1200 ms incl. solver creation, log curve 0.003%..3% pot).
+- Speed 15 = turn T1 (target 0.25% pot) + depth-limited flop F1 (target 3% pot), 7.5 each; pts = 7.5*clamp(0.5+log2(baseline/median)/4); baseline_ms 1520 / 3400 (measured alone on base commit); 4x faster = full marks; timeout = 0. Run 1 searches the iteration count to target (BR checks with the clock paused), runs 2-3 re-run that count; median of 3; last repeat re-verified with frozen BR.
+- Rules 15 = tests 9 (passed/total, 8 LOG.md tools, exit code; sim also no HANG/CHIPS output, postflop-test no FAIL lines, mapcheck must print an exact share) + browser rule checks 6 (lane B rules.points/rules.max scaled to 6). Any failed test -> veto test-failure; any veto caps total at 40.
+- Quick args: sim 300 hands, mapcheck 6 300, postflop-test --quick.
+- Exploitability always from frozen-br.js (independent best response over the candidate's strategyTable/actionsAt/nodeInfo, frozen-eval7.js showdowns); on the base commit it matches solver.exploitability() to 4 decimals on all 6 fixture spots.
+- Fixed ports used by LOG.md browser tools: 8765 (shoot), 8774 (coach-shots), 8776 (orbit-nav); lane B uses an ephemeral port.
+
+Tests run by the rules category (8 LOG.md tools): rules-test, sim 300, coach-test, postflop-test --quick, mapcheck 6 300, shoot, coach-shots, orbit-nav.
+
+## Baseline notes (orchestrator, 15:10)
+- The 3 baseline runs were taken on 4b145be, whose tools/score files are byte-identical to the freeze commit 41dabdc (the freeze commit only adds FROZEN.sha256, SCORE.md and runs/). The validator's fresh runs on 41dabdc scored 61.59, inside the spread.
+- Run 3's `test-failure` veto came from `tools/shoot.js` timing out in `waitTurn`. It is a pre-existing flaky test, not an app rule violation: it passed in runs 1–2, in a standalone rerun and in the validator's runs. It is listed as a known flake in TODO.md ("coach-shots can still flake").
+- MDE per contract = max(2 × total spread, 1.0). Literal spread with the flaked run = 21.72 (MDE 43.4, meaningless because it measures the veto, not the noise). Non-veto spread = 0.04 → **working MDE 1.0**. Rule: a candidate showing `test-failure` is re-run once; two failures in a row count as real.
+- Known weakness (validator, VAL-SCORE-005): the "visible progress over time" sub-score can be earned by static trend text. Accepted risk; the orchestrator inspects any candidate that gains that sub-score for real, data-driven trends before accepting.
