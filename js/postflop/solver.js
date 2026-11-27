@@ -250,6 +250,7 @@ function setup(input, countOnly) {
     rootStreet: board.length, rootPot: pot + bets[0] + bets[1],
     sdCache: new Map(), matCache: new Map(), permCache: new Map(),
     stats: null, root: null, maxDepth: 0, maxA: 2,
+    leafWalk: false, // evaluation passes walk sampled-leaf plans exactly (actionValues)
   };
   ctx.root = buildStreet(ctx, board, pot, stack, bets, toAct, nBets, checks, 0);
   // Chance sampling setup (first chance level; see evalChance).
@@ -901,6 +902,8 @@ function matvec(mat, n0, n1, p, r, y, v) {
 // (M_rep r')(g^-1 h) with r'(k) = r(g k).
 function evalMatrix(ctx, node, p, reach, out, mode) {
   if (mode === CFR && ctx.leafK > 0) return evalSampledRunout(ctx, node, p, reach, out);
+  // actionValues(): walk the runouts unless this leaf's matrix already exists.
+  if (ctx.leafWalk && node.plan && !node.mat) return evalRunoutWalk(ctx, node, p, reach, out);
   const n0 = ctx.n[0], n1 = ctx.n[1], nP = ctx.n[p], o = 1 - p, nO = ctx.n[o];
   if (!node.flopRunout) {
     const mat = node.mat || (node.mat = getMatrix(ctx, node.board));
@@ -993,6 +996,26 @@ function evalSampledRunout(ctx, node, p, reach, out) {
       showdownWalk(ctx, getShowdown(ctx, b), p, reach, out, v);
     }
   }
+}
+
+// Exact runout value as the sampled estimator's full rotation: every group,
+// each runout an O(n) showdown walk. Used by actionValues() on sampled-leaf
+// solves, where it skips building the n x n leaf matrices (seconds on a
+// flop) and costs about as much as one matrix product per leaf.
+function evalRunoutWalk(ctx, node, p, reach, out) {
+  const plan = node.plan, two = plan.two;
+  if (!plan.sds) { // every runout's showdown tables, shared by leaves on this board
+    plan.sds = [];
+    for (const grp of plan.groups) {
+      for (const item of grp) {
+        plan.sds.push(getShowdown(ctx, two ? [...node.board, (item / 52) | 0, item % 52] : [...node.board, item]));
+      }
+    }
+  }
+  const n = 52 - node.board.length;
+  const v = node.amt / (two ? ((n - 4) * (n - 5)) / 2 : n - 4);
+  const sds = plan.sds;
+  for (let i = 0; i < sds.length; i++) showdownWalk(ctx, sds[i], p, reach, out, v);
 }
 
 function chooseSamples(ctx, t) {
@@ -1126,9 +1149,137 @@ function makeApi(ctx) {
     return probs;
   }
 
-  /** Reach-weighted range (Float32Array 1326) of `player` at `path`. */
-  function rangeAt(path, player) {
-    const { trail, g: gEnd } = walk(path);
+  /** Average-strategy table at a decision node: Float32Array(1326 * k),
+   *  combo-major (probs[combo * k + a]), NaN where strategyAt would return
+   *  null. Returns { player, k, probs }, or null if `path` is not a decision
+   *  node. */
+  function strategyTable(path) {
+    const { node, g, dealt } = walk(path);
+    if (node.t !== ACT) return null;
+    const L = lists[node.player], A = node.actions.length, n = L.n, sum = node.sum;
+    const probs = new Float32Array(NUM_COMBOS * A).fill(NaN);
+    const perm = PERMS[g];
+    for (let i = 0; i < NUM_COMBOS; i++) {
+      if (blockedBy(dealt, i)) continue;
+      const h = L.local[permCombo(perm, i)];
+      if (h < 0) continue;
+      let tot = 0;
+      for (let a = 0; a < A; a++) tot += sum[a * n + h];
+      for (let a = 0; a < A; a++) probs[i * A + a] = tot > 0 ? sum[a * n + h] / tot : 1 / A;
+    }
+    return { player: node.player, k: A, probs };
+  }
+
+  // Compatible opponent reach for each of p's local combos (the fold-terminal
+  // sum: total minus per-card sums plus the same-combo add-back).
+  function compatReach(p, reach) {
+    const Lp = lists[p], Lo = lists[1 - p], CS = new Float64Array(52);
+    let tot = 0;
+    for (let j = 0; j < Lo.n; j++) { const r = reach[j]; tot += r; CS[Lo.c1[j]] += r; CS[Lo.c2[j]] += r; }
+    const out = new Float64Array(Lp.n), tiny = 1e-9 * tot;
+    for (let h = 0; h < Lp.n; h++) {
+      const s = Lp.same[h];
+      const c = tot - CS[Lp.c1[h]] - CS[Lp.c2[h]] + (s >= 0 ? reach[s] : 0);
+      out[h] = c > tiny ? c : 0; // cancellation noise counts as no reach
+    }
+    return out;
+  }
+
+  // Per-combo EV (BB) of player p at `node`, real-frame Float64Array(1326),
+  // NaN out of range or with no compatible opponent reach.
+  function comboEvs(node, g, dealt, p, reach, cfv, off = 0) {
+    const L = lists[p], den = compatReach(p, reach), perm = PERMS[g];
+    const out = new Float64Array(NUM_COMBOS).fill(NaN);
+    for (let i = 0; i < NUM_COMBOS; i++) {
+      if (blockedBy(dealt, i)) continue;
+      const h = L.local[permCombo(perm, i)];
+      if (h >= 0 && den[h] > 0) out[i] = (cfv ? cfv[h] : 0) / den[h] + off;
+    }
+    return out;
+  }
+
+  // Per-combo raw counterfactual values (list order, solved-subtree frame)
+  // of player p at `node` against opponent reach `reach`, average strategies.
+  function cfvAt(node, p, reach) {
+    const out = new Float64Array(lists[p].n);
+    ctx.leafWalk = true;
+    try { traverse(ctx, node, p, reach, out, 0, AVG); } finally { ctx.leafWalk = false; }
+    return out;
+  }
+
+  /**
+   * EV in BB of each action for the acting player's `combo` at the decision
+   * node reached by `path`, then both players following the average
+   * strategies. One entry per actionsAt(path) action; null if the path is not
+   * a decision node, the combo is not in that player's range there (zero
+   * weight, or blocked by the board / dealt cards; same rule as strategyAt),
+   * or the opponent has no compatible reach there.
+   *
+   * Each value is an expectation over the opponent's reach-weighted range at
+   * the node with card removal (opponent combos sharing a card with `combo`
+   * excluded), and over the chance cards still to come.
+   *
+   * opts.base selects the zero point:
+   *  'fold' (default): relative to folding now, i.e. chips the hand will
+   *     collect from the pot minus chips it will still put in. Chips already
+   *     in (earlier streets and this street's bets) are sunk. A fold action
+   *     is exactly 0; a check is usually >= 0.
+   *  'root': the solver's internal convention, as evs(): net result measured
+   *     from the solve root with each player owning half of `pot` (the pot
+   *     before this street's bets), start bets counted as at risk. It equals
+   *     the 'fold' value minus (pot at the start of this street / 2 + this
+   *     player's bet so far this street), both in root terms.
+   * Either way sum_a strategyAt(path, combo)[a] * values[a] is the combo's
+   * value at the node, and at the root the 'root' values averaged over the
+   * range (weight * compatible opponent reach) give evs()[player].
+   *
+   * Cost: one average-strategy pass over the node's subtree for one player
+   * (about half a CFR iteration at the root). Sampled-leaf flops evaluate
+   * leaves exactly by showdown walks, without building the leaf matrices.
+   */
+  function actionValues(path, combo, opts = {}) {
+    if (!(combo >= 0 && combo < NUM_COMBOS)) return null;
+    const tab = actionValueTable(path, opts);
+    if (!tab || Number.isNaN(tab.values[combo * tab.k])) return null;
+    return Array.from(tab.values.subarray(combo * tab.k, (combo + 1) * tab.k));
+  }
+
+  /** actionValues for every combo at once (same cost as one call):
+   *  { player, k, values: Float64Array(1326 * k) combo-major, NaN where
+   *  actionValues would return null }, or null off a decision node. */
+  // Raw ('root' base) tables of recent paths, valid while `iterations` is
+  // unchanged, so repeat lookups on a finished solve (another hero, the UI
+  // re-rendering) skip the pass.
+  const valueCache = new Map();
+  function actionValueTable(path, opts = {}) {
+    const { node, g, dealt, trail } = walk(path);
+    if (node.t !== ACT) return null;
+    const p = node.player, A = node.actions.length;
+    const key = `${iterations}|${(path || []).join(',')}`;
+    let raw = valueCache.get(key);
+    if (!raw) {
+      const reach = reachAlong(trail, 1 - p);
+      raw = new Float64Array(NUM_COMBOS * A);
+      node.kids.forEach((kid, a) => {
+        // A fold is exact: the folder loses kid.amt against any reach.
+        const col = kid.t === FOLD
+          ? comboEvs(kid, g, dealt, p, reach, null, -kid.amt)
+          : comboEvs(kid, g, dealt, p, reach, cfvAt(kid, p, reach));
+        for (let i = 0; i < NUM_COMBOS; i++) raw[i * A + a] = col[i];
+      });
+      for (const k of valueCache.keys()) if (!k.startsWith(`${iterations}|`)) valueCache.delete(k);
+      valueCache.set(key, raw);
+      while (valueCache.size > 8) valueCache.delete(valueCache.keys().next().value);
+    }
+    const off = opts.base === 'root' ? 0 : node.pot / 2 + node.puts[p];
+    const values = new Float64Array(raw.length);
+    for (let i = 0; i < raw.length; i++) values[i] = raw[i] + off;
+    return { player: p, k: A, values };
+  }
+
+  // Reach of `player` along a walk() trail, in the solved subtree's frame
+  // and list order (the opponent reach traverse() expects at the node).
+  function reachAlong(trail, player) {
     const L = lists[player];
     let r = Float64Array.from(L.w);
     for (const step of trail) {
@@ -1151,6 +1302,14 @@ function makeApi(ctx) {
         r = nr;
       }
     }
+    return r;
+  }
+
+  /** Reach-weighted range (Float32Array 1326) of `player` at `path`. */
+  function rangeAt(path, player) {
+    const { trail, g: gEnd } = walk(path);
+    const L = lists[player];
+    const r = reachAlong(trail, player);
     const out = new Float32Array(NUM_COMBOS);
     for (let i = 0; i < NUM_COMBOS; i++) {
       const h = L.local[permCombo(PERMS[gEnd], i)];
@@ -1160,7 +1319,16 @@ function makeApi(ctx) {
   }
 
   return {
-    step, exploitability, evs, bestResponseValues, actionsAt, strategyAt, rangeAt, nodeInfo,
+    step, exploitability, evs, bestResponseValues, actionsAt, strategyAt, strategyTable, rangeAt,
+    actionValues, actionValueTable, nodeInfo,
+    // For tests: per-combo EV (BB, 'root' base, Float64Array 1326, NaN out of
+    // range or with no compatible opponent reach) of `player` at any node,
+    // from one pass over the whole node.
+    _comboEvs(path, player) {
+      const { node, g, dealt, trail } = walk(path);
+      const reach = reachAlong(trail, 1 - player);
+      return comboEvs(node, g, dealt, player, reach, cfvAt(node, player, reach));
+    },
     get iterations() { return iterations; },
     memoryBytes: ctx.stats.memoryBytes,
     // Extra memory the first exploitability() call allocates on a

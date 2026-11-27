@@ -8,6 +8,19 @@
 //       (any solve already running is stopped first)
 //   { cmd: 'watch', id, hands, path }   change what the updates report
 //   { cmd: 'stop', id }                 stop; a final done:true update follows
+//   { cmd: 'ranges', id, rid, acts }    -> { rid, ranges: [oop, ip] } (1326 each)
+//   { cmd: 'detail', id, rid, acts, hero }   one decision node, live or finished
+//       -> { rid, path, approx, player, actions, probs, range, oppRange, values }
+//       probs: Float32Array(1326 * k), combo-major (probs[combo * k + a]),
+//         average strategy, NaN for combos not in the acting player's range
+//         (zero weight or blocked; same rule as strategies[].probs === null)
+//       range / oppRange: Float32Array(1326) reach-weighted ranges of the
+//         acting player and the other player at the node
+//       values: solver.actionValues(path, hero) (EV in BB per action relative
+//         to folding now; see solver.js), or null (no hero / not in range)
+//       -> { rid, error } if the job is unknown or acts end off a decision
+//       node. The typed-array buffers are transferred. Cost: one
+//       average-strategy pass below the node for one player.
 // Messages out (about every 200 ms, and once more with done: true):
 //   { id, iter, exploit, exploitIter, done, reason, elapsedMs, depthLimited,
 //     memoryBytes, path, actions, strategies: { comboIdx: { actions, probs } } }
@@ -182,6 +195,21 @@ export function createWorkerHandler(post) {
         const { path } = mapActs(job.solver, msg.acts);
         post({ rid: msg.rid, ranges: [job.solver.rangeAt(path, 0), job.solver.rangeAt(path, 1)] });
       } catch (e) { post({ rid: msg.rid, ranges: null, error: String(e.message || e) }); }
+    } else if (msg.cmd === 'detail') {
+      const job = jobs.get(msg.id) || finished.get(msg.id);
+      if (!job) { post({ rid: msg.rid, error: `no job ${msg.id}` }); return; }
+      try {
+        const s = job.solver;
+        const { path, approx } = mapActs(s, msg.acts);
+        const tab = s.strategyTable(path);
+        if (!tab) { post({ rid: msg.rid, path, approx, error: 'not a decision node' }); return; }
+        const range = s.rangeAt(path, tab.player), oppRange = s.rangeAt(path, 1 - tab.player);
+        const values = msg.hero == null ? null : s.actionValues(path, msg.hero);
+        post({
+          rid: msg.rid, path, approx, player: tab.player, actions: s.actionsAt(path),
+          probs: tab.probs, range, oppRange, values,
+        }, [tab.probs.buffer, range.buffer, oppRange.buffer]);
+      } catch (e) { post({ rid: msg.rid, error: String(e.message || e) }); }
     } else if (msg.cmd === 'stop') {
       const job = jobs.get(msg.id);
       if (job) job.stopped = true;
@@ -191,6 +219,6 @@ export function createWorkerHandler(post) {
 
 // Browser worker glue (not taken in Node or on the main thread).
 if (typeof WorkerGlobalScope !== 'undefined' && typeof self !== 'undefined' && self instanceof WorkerGlobalScope) {
-  const handle = createWorkerHandler(m => self.postMessage(m));
+  const handle = createWorkerHandler((m, transfer) => self.postMessage(m, transfer || []));
   self.onmessage = e => handle(e.data);
 }

@@ -5,6 +5,10 @@ import { mapSpot, handClass, className, strategyAt, decodeStrategy } from './coa
 import { STACK } from './preflop-tree.js';
 import { estimate } from './ranges.js';
 import * as pf from './postflop-coach.js';
+import * as H from './history.js';
+import { preflopDetail, postflopDetail, villainView, storedPreflopGrid, nodeMixes } from './explain.js';
+import { gridHTML } from './grid.js';
+import { openDrills } from './drills.js';
 
 const SB = 5, BB = 10, START = 100 * BB;
 const SPEED = { slow: [1200, 2200], normal: [600, 1300], fast: [220, 480] };
@@ -14,7 +18,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 // ---------- saved state ----------
 const KEY = 'poker-coach-v1';
 const saved = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })();
-const settings = { unit: 'bb', fourColor: false, seats: 6, speed: 'normal', felt: 'black', stacks: 'topup', coach: 'always', ...saved.settings };
+const settings = { unit: 'bb', fourColor: false, seats: 6, speed: 'normal', felt: 'black', stacks: 'topup', coach: 'always', orbitReview: true, calibration: true, ...saved.settings };
 // v2: stacks carry over with an auto top-up to 100 BB (the old 'reset' default hid every win)
 if ((saved.version || 1) < 2) settings.stacks = 'topup';
 const session = { hands: 0, net: 0, buyins: 1, pfN: 0, pfGood: 0, ...saved.session };
@@ -394,7 +398,7 @@ function renderActions() {
   el.classList.remove('waiting');
   renderQuick();
   if (game.handOver) {
-    el.innerHTML = `<button class="btn primary next-btn" data-a="next">Next hand</button>`;
+    el.innerHTML = `<button class="btn sq replay-btn" data-a="replay" aria-label="Replay hand"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="btn primary next-btn" data-a="next">Next hand</button>`;
     return;
   }
   if (!heroTurn) {
@@ -454,6 +458,7 @@ $('actions').addEventListener('click', (e) => {
   if (!b) return;
   const a = b.dataset.a;
   if (a === 'next') { nextResolve?.(); return; }
+  if (a === 'replay') { if (lastHandRec) openReplay(lastHandRec); return; }
   if (a === 'more') return openRaise();
   if (a === 'raise') return heroAct('raise', +b.dataset.to);
   heroAct(a);
@@ -528,12 +533,13 @@ $('unitBtn').addEventListener('click', () => { settings.unit = settings.unit ===
 document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   const k = seg.dataset.key; let v = b.dataset.v;
-  if (k === 'fourColor') v = v === 'true';
+  if (k === 'fourColor' || k === 'orbitReview' || k === 'calibration') v = v === 'true';
   if (k === 'seats') v = +v;
   settings[k] = v;
   applySettings(); render(); save();
 }));
 let resetRequested = false;
+let lastHandRec = null;
 $('newTable').addEventListener('click', () => {
   resetRequested = true;
   closeSheets();
@@ -641,6 +647,7 @@ async function loop() {
     save();
     await gate();
     game.startHand();
+    H.beginHand(game);
     pre = null;
     let street = game.street;
     acting = -1;
@@ -698,11 +705,19 @@ async function loop() {
     session.hands++;
     session.net += hero().stack - startStack;
     save();
-    if (hero().folded) { await sleep(150); await gate(); continue; }
+    const doneHand = H.endHand(game);
+    const orbitHands = H.closeOrbitIfDue(doneHand);
+    if (hero().folded) {
+      await sleep(150);
+      if (orbitHands && settings.orbitReview) await openOrbitReview(orbitHands);
+      await gate(); continue;
+    }
     render();
     // results stay up until you tap
+    lastHandRec = doneHand;
     await new Promise(r => { nextResolve = r; });
     nextResolve = null;
+    if (orbitHands && settings.orbitReview) await openOrbitReview(orbitHands);
     await gate();
   }
 }
@@ -752,7 +767,7 @@ function readSpot() {
     label: a.t === 'f' ? 'Fold' : a.t === 'c' ? (cur > h.bet / BB ? 'Call' : 'Check') : a.to >= STACK ? 'All-in' : `Raise ${num(iso(a) * BB)}`,
   }));
   const rare = S.vis[m.node.id] < RARE_VIS;
-  return withRoll({ ...base, mix, quality: m.quality, why: m.why, rare });
+  return withRoll({ ...base, mix, quality: m.quality, why: m.why, rare, nodeId: m.node.id, n });
 }
 
 const COLOR = { r: '#ff7a5c', c: '#6aa8ff', f: '#8a8a92' }; // green is reserved for the coach's pick
@@ -794,7 +809,7 @@ function postflopSpot() {
   }));
   const way = e.villains + 1;
   if (way === 2) pf.request(game, heroI, S && S.strat ? S.strat : null).catch(() => {});
-  return withRoll({ live: way === 2 ? { pending: true } : null,
+  return withRoll({ live: way === 2 ? { pending: true } : null, eqNum: e.eq, needNum: e.need,
     pos, hand: desc, mix, quality: 'estimate', estimate: true, way,
     why: `${way > 2 ? way + '-way ' : ''}estimate · equity ${Math.round(e.eq * 100)}%${e.need ? ` vs ${Math.round(e.need * 100)}% needed` : ''}`,
   });
@@ -834,7 +849,7 @@ function coachHTML() {
     const lv = cs.live ? `<span class="meter-row">${meter(cs.live)}</span>` : '';
     const anim = roll !== shownRoll ? ' anim' : '';
     shownRoll = roll;
-    return `<span class="coach"><span class="die${anim}">${roll}</span>${cs.pos} · ${cs.hand}${tag(cs)}<br>${parts}${mixBar(cs.mix)}${lv}</span>`;
+    return `<span class="coach"><span class="die${anim}">${roll}</span>${cs.pos} · ${cs.hand}${tag(cs)}<button class="why-btn">Why?</button><br>${parts}${mixBar(cs.mix)}${lv}</span>`;
   }
   if (graded) return graded.html;
   return '';
@@ -862,6 +877,43 @@ function grade(type) {
     hand: game.handNo,
     html: `<span class="coach"><span class="grade ${cls}">${word}</span> ${sp.pos} · ${sp.hand}${tag(sp)}<br><span class="dim">${solver}</span></span>`,
   };
+  logHeroDecision(sp, t, word, cls);
+}
+
+// preflop situation label from the history before the hero acts
+function preflopSit() {
+  const before = [];
+  for (const h of game.history) { if (h.street !== 'preflop') break; before.push(h); }
+  const raises = before.filter(h => h.type === 'raise').length;
+  const limps = before.filter(h => h.type === 'call' && h.amount <= BB).length;
+  return raises === 0 ? (limps ? 'vs limpers' : 'first in') : raises === 1 ? 'vs open' : raises === 2 ? 'vs 3-bet' : 'vs 4-bet+';
+}
+
+function logHeroDecision(sp, t, word, gcls) {
+  const heroI = game.players.findIndex(p => p.isHero);
+  const L = game.legal();
+  const pre = game.street === 'preflop';
+  const rec = {
+    street: game.street, pos: sp.pos, hand: sp.hand, chosen: t, grade: word, gcls,
+    mix: sp.mix.map(m => ({ t: m.t, label: m.label, freq: +m.freq.toFixed(3) })),
+    pick: sp.pick ? sp.pick.label : null,
+    quality: pre ? (sp.quality === 'exact' && !sp.rare ? 'exact' : sp.quality) : sp.solved ? 'solved' : 'estimate',
+    facing: L.toCall > 0, board: game.board.slice(), pot: game.totalPot / BB,
+    need: L.toCall > 0 ? L.toCall / (game.totalPot + L.toCall) : null,
+  };
+  if (pre) {
+    rec.n = sp.n; rec.nodeId = sp.nodeId; rec.cls = sp.cls; rec.sit = preflopSit();
+    try {
+      const S = strategies[sp.n];
+      const d = S && S.strat ? preflopDetail(game, heroI, S.strat) : null;
+      if (d) { rec.facts = d.facts; if (d.eq != null) rec.eq = d.eq; }
+    } catch (e) { /* explanations are best-effort */ }
+  } else {
+    rec.eq = sp.eqNum ?? null;
+    rec.values = sp.values || null;
+  }
+  rec.leak = H.leakOf(rec);
+  H.logDecision(rec);
 }
 
 // live postflop solver updates
@@ -903,6 +955,208 @@ function refreshCoach() {
   highlightPick();
 }
 
+// ---------- panels: coach, opponent peek, replay, orbit review, leaks, hands ----------
+let panelResolve = null;
+function openPanel(title, html, aside = '') {
+  $('panelTitle').textContent = title;
+  $('panelAside').innerHTML = aside;
+  $('panelBody').innerHTML = html;
+  $('panelBody').scrollTop = 0;
+  $('panel').classList.add('on');
+  return new Promise(r => { panelResolve = r; });
+}
+function closePanel() {
+  $('panel').classList.remove('on');
+  const r = panelResolve; panelResolve = null; r?.();
+}
+$('panelClose').addEventListener('click', closePanel);
+
+const SUITG = ['♠', '♥', '♦', '♣'];
+const cardTxt = (c) => `<span class="ct s-${suitOf(c)}">${rankLabel(rankOf(c))}${SUITG[suitOf(c)]}</span>`;
+const cardsTxt = (cs2) => cs2.map(cardTxt).join('');
+const pctTxt = (x) => `${Math.round(x * 100)}%`;
+const bbTxt = (x) => `${x >= 0 ? '+' : ''}${(+x).toFixed(1)}`;
+function mixRows(mix, pickLabel) {
+  return `<div class="mixrows">${mix.filter(m => m.freq >= 0.005).sort((a, b) => b.freq - a.freq).map(m =>
+    `<div class="mixrow ${pickLabel && m.label === pickLabel ? 'pick' : ''}"><span>${m.label}</span><i><b style="width:${Math.round(m.freq * 100)}%;background:${COLOR[m.t]}"></b></i><em>${Math.round(m.freq * 100)}%</em></div>`).join('')}</div>`;
+}
+const factList = (facts) => `<ul class="facts">${facts.map(f => `<li>${f}</li>`).join('')}</ul>`;
+
+// The Coach panel for the current decision
+async function openCoachPanel() {
+  if (!cs || !heroTurn) return;
+  const heroI = game.players.findIndex(p => p.isHero);
+  const n = game.players.filter(p => !p.out).length;
+  const S = strategies[n];
+  const strat = S && S.strat ? S.strat : null;
+  let html = '';
+  if (game.street === 'preflop') {
+    const d = strat ? preflopDetail(game, heroI, strat) : null;
+    if (!d) { html = '<p class="dim">No solution for this spot yet.</p>'; }
+    else {
+      html += `<section><h4>Your range here</h4>${gridHTML({ mixes: d.mixes, mark: d.cls })}</section>`;
+      html += `<section><h4>Why</h4>${factList(d.facts)}</section>`;
+      if (cs.mix) html += `<section><h4>Solver mix for ${cs.hand}</h4>${mixRows(cs.mix, cs.pick?.label)}</section>`;
+    }
+  } else {
+    const solved = cs.live ? await pf.detail(game, heroI).catch(() => null) : null;
+    const d = postflopDetail(game, heroI, strat, solved);
+    html += `<section><h4>Why</h4>${factList(d.facts)}</section>`;
+    if (d.rankInRange != null) {
+      html += `<section><h4>Where your hand sits</h4><div class="sitbar"><i style="left:${Math.round(d.rankInRange * 100)}%"></i></div><div class="sitlabels"><span>bottom of your range</span><span>top</span></div>`;
+      if (d.tiers && solved) {
+        const acts = solved.actions;
+        html += `<div class="tiers">${d.tiers.map((t, k) => `<div class="tier"><span>${['Top fifth', '2nd', '3rd', '4th', 'Bottom'][k]}</span><i>${t.mix.map((f, a) => {
+          const ty = acts[a].type; const col = ty === 'fold' ? '#3a3a40' : (ty === 'check' || ty === 'call') ? COLOR.c : COLOR.r;
+          return `<b style="flex:${f};background:${col}" title="${ty}"></b>`; }).join('')}</i></div>`).join('')}</div><p class="dim small">What the solver does with each fifth of your range, strongest first: red bets or raises, blue checks or calls, grey folds.</p>`;
+      }
+      html += '</section>';
+    }
+    if (d.read && d.read.equity != null) {
+      html += `<section><h4>Board read</h4><div class="tags">${d.tags.map(x => `<span>${x}</span>`).join('')}</div>
+        <div class="vs"><span>You ${pctTxt(d.read.equity)}</span><i><b style="width:${Math.round(d.read.equity * 100)}%"></b></i><span>${d.read.them} ${pctTxt(1 - d.read.equity)}</span></div>
+        <p class="dim small">Strongest 10% of hands on this board: ${pctTxt(d.read.nutsYou)} of your range vs ${pctTxt(d.read.nutsThem)} of theirs.</p></section>`;
+    }
+    if (solved && solved.values) {
+      const best = Math.max(...solved.values);
+      html += `<section><h4>What each option is worth</h4><div class="evs">${solved.actions.map((a, i) => {
+        const lbl = a.type === 'fold' ? 'Fold' : a.type === 'check' ? 'Check' : a.type === 'call' ? 'Call' : a.type === 'allin' ? 'All-in' : `${a.type === 'bet' ? 'Bet' : 'Raise'} ${a.amount.toFixed(1)}`;
+        return `<div class="${solved.values[i] === best ? 'best' : ''}"><span>${lbl}</span><b>${bbTxt(solved.values[i])} BB</b></div>`; }).join('')}</div><p class="dim small">Expected value of each option with your exact hand, from the live solve.</p></section>`;
+    }
+    if (cs.mix) html += `<section><h4>Coach mix</h4>${mixRows(cs.mix, cs.pick?.label)}</section>`;
+  }
+  // opponents still in: tap to peek
+  const opps = game.players.map((p, i) => ({ p, i })).filter(({ p }) => !p.isHero && !p.folded && !p.out);
+  if (opps.length) html += `<section><h4>Opponents</h4><div class="peeks">${opps.map(({ p, i }) => `<button data-peek="${i}">${game.positions()[i]} · ${p.name}</button>`).join('')}</div></section>`;
+  openPanel(`${cs.pos} · ${cs.hand}`, html);
+}
+
+async function openVillain(seat) {
+  const heroI = game.players.findIndex(p => p.isHero);
+  const n = game.players.filter(p => !p.out).length;
+  const S = strategies[n];
+  const v = villainView(game, seat, heroI, S && S.strat ? S.strat : null);
+  const p = game.players[seat];
+  const html = `<section>${gridHTML({ weights: v.weights })}</section>
+    <section>${factList([
+      `${game.positions()[seat]} plays about ${pctTxt(v.width)} of all starting hands to get here.`,
+      v.eq != null ? `Your hand wins ${pctTxt(v.eq)} against this range${game.board.length < 5 ? ' (with cards to come)' : ''}.` : '',
+      game.board.length ? 'After the flop the range is narrowed by their bets and calls: strong hands stay, weak ones fade.' : 'Preflop range from the solver, following what they actually did.',
+    ].filter(Boolean))}</section>`;
+  openPanel(`${game.positions()[seat]} · ${p.name}`, html);
+}
+
+$('panelBody').addEventListener('click', (e) => {
+  const pk = e.target.closest('[data-peek]');
+  if (pk) return openVillain(+pk.dataset.peek);
+});
+$('seats').addEventListener('click', (e) => {
+  if (game.handOver) return;
+  const seat = e.target.closest('.seat');
+  if (!seat) return;
+  const i = +seat.id.slice(5);
+  if (!game.players[i].folded) openVillain(i);
+});
+
+// Replay of one logged hand
+function openReplay(h) {
+  const steps = h.decisions.map((d, k) => {
+    const grid = d.street === 'preflop' ? storedPreflopGrid(strategies, d) : null;
+    return `<div class="rstep" data-k="${k}">
+      <div class="rstep-head"><span class="grade ${d.gcls}">${d.grade}</span><b>${d.street[0].toUpperCase() + d.street.slice(1)}</b>
+        <span class="dim">${d.board && d.board.length ? cardsTxt(d.board) : ''}</span>
+        <span class="you">You: ${d.chosen === 'f' ? 'Fold' : d.chosen === 'r' ? 'Bet/Raise' : (d.facing ? 'Call' : 'Check')}</span></div>
+      <div class="rstep-body">${mixRows(d.mix, d.pick)}
+        ${d.need != null ? `<p class="dim small">Price ${pctTxt(d.need)}${d.eq != null ? ` · your equity ${pctTxt(d.eq)}` : ''}</p>` : ''}
+        ${d.facts ? factList(d.facts) : ''}
+        ${grid ? gridHTML({ mixes: grid, mark: d.cls }) : ''}
+        ${d.quality !== 'exact' && d.quality !== 'solved' ? `<p class="dim small">Graded against an ${d.quality === 'estimate' ? 'estimate' : 'approximate solution'}.</p>` : ''}
+      </div></div>`;
+  }).join('') || '<p class="dim">No decisions logged for this hand.</p>';
+  const shown = (h.shown || []).map(x => `<span>${x.name} ${cardsTxt(x.cards)}</span>`).join(' · ');
+  const head = `<div class="rp-head"><span class="rp-cards">${cardsTxt(h.cards)}</span><span>${h.pos}</span><span class="rp-net ${h.net >= 0 ? 'up' : 'down'}">${bbTxt(h.net / h.bb)} BB</span></div>
+    ${h.board && h.board.length ? `<div class="rp-board">${cardsTxt(h.board)}</div>` : ''}${shown ? `<p class="dim small">Shown: ${shown}</p>` : ''}`;
+  return openPanel(`Hand ${h.no}`, head + `<div class="rsteps">${steps}</div>`);
+}
+$('panelBody').addEventListener('click', (e) => {
+  const st = e.target.closest('.rstep-head');
+  if (st) st.parentElement.classList.toggle('open');
+  const hr = e.target.closest('[data-hand]');
+  if (hr) { const h = H.history.hands.find(x => x.no === +hr.dataset.hand); if (h) openReplay(h); }
+});
+
+function handRows(hands) {
+  return hands.map(h => {
+    const worst = h.decisions.some(d => d.gcls === 'r') ? 'r' : h.decisions.some(d => d.gcls === 'y') ? 'y' : h.decisions.length ? 'g' : '';
+    return `<button class="hrow" data-hand="${h.no}"><span class="rp-cards">${cardsTxt(h.cards)}</span><span class="hpos">${h.pos}</span>
+      <span class="dot ${worst}"></span><span class="rp-net ${h.net >= 0 ? 'up' : 'down'}">${bbTxt(h.net / h.bb)}</span></button>`;
+  }).join('');
+}
+
+// Orbit review: calibration questions, then the orbit's hands strongest first
+async function openOrbitReview(hands) {
+  const net = hands.reduce((s, h) => s + h.net / h.bb, 0);
+  const ranked = hands.slice().sort((a, b) => H.strengthOf(b.cards) - H.strengthOf(a.cards));
+  const qs = [];
+  if (settings.calibration) {
+    const pool = hands.flatMap(h => h.decisions.map(d => ({ h, d })));
+    const needQ = pool.filter(x => x.d.need != null);
+    const eqQ = pool.filter(x => x.d.eq != null && x.d.facing);
+    const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    if (needQ.length) { const x = pickOne(needQ); qs.push({ kind: 'need', ...x, truth: x.d.need }); }
+    if (eqQ.length) { const x = pickOne(eqQ); qs.push({ kind: 'eq', ...x, truth: x.d.eq }); }
+  }
+  const c = H.history.calib;
+  const calibLine = () => c.n ? `Your 90% ranges caught the truth ${c.hits} of ${c.n} times (${Math.round(100 * c.hits / c.n)}%) · average width ${Math.round(c.width / c.n)} points. Aim for 9 in 10 with ranges as narrow as you can.` : 'Give a low and high number you are 90% sure the truth falls between. Over time, aim to be right 9 in 10 times with narrower ranges.';
+  const qHTML = qs.map((q, k) => {
+    const ctx = `${q.d.street[0].toUpperCase() + q.d.street.slice(1)} · ${q.h.pos} · ${cardsTxt(q.h.cards)}${q.d.board && q.d.board.length ? ' on ' + cardsTxt(q.d.board) : ''}`;
+    const ask = q.kind === 'need' ? 'How often did you need to win to call?' : 'How often did your hand win against their range?';
+    return `<div class="calq" data-k="${k}"><p class="small dim">${ctx}</p><p>${ask}</p>
+      <div class="dual"><div class="dual-track"><i class="dual-fill"></i><i class="dual-truth"></i></div>
+        <input type="range" min="0" max="100" value="20" class="lo"><input type="range" min="0" max="100" value="45" class="hi"></div>
+      <div class="calrow"><span class="calval">20% – 45%</span><button class="btn small-btn reveal">Reveal</button></div><p class="calres small"></p></div>`;
+  }).join('');
+  const html = `${qs.length ? `<section><h4>Calibration · 90% ranges</h4><p class="small dim">${calibLine()}</p>${qHTML}</section>` : ''}
+    <section><h4>This orbit, strongest hand first</h4><div class="hrows">${handRows(ranked)}</div></section>`;
+  const next = game.positions ? '' : '';
+  const done = openPanel(`Orbit ${hands[0].orbit}`, html, `<span class="${net >= 0 ? 'up' : 'down'}">${bbTxt(net)} BB</span>`);
+  // wire the dual sliders
+  $('panelBody').querySelectorAll('.calq').forEach(el => {
+    const lo = el.querySelector('.lo'), hi = el.querySelector('.hi');
+    const sync = () => {
+      if (+lo.value > +hi.value) [lo.value, hi.value] = [hi.value, lo.value];
+      el.querySelector('.calval').textContent = `${lo.value}% – ${hi.value}%`;
+      const f = el.querySelector('.dual-fill'); f.style.left = lo.value + '%'; f.style.width = (hi.value - lo.value) + '%';
+    };
+    lo.addEventListener('input', sync); hi.addEventListener('input', sync); sync();
+    el.querySelector('.reveal').addEventListener('click', (ev) => {
+      const q = qs[+el.dataset.k];
+      const truth = Math.round(q.truth * 100);
+      const hit = H.recordCalibration(+lo.value, +hi.value, truth);
+      const t = el.querySelector('.dual-truth'); t.style.left = truth + '%'; t.classList.add('on');
+      el.querySelector('.calres').innerHTML = `${hit ? '<b class="up">Inside your range.</b>' : '<b class="down">Outside your range.</b>'} The answer was ${truth}%.`;
+      ev.target.disabled = true; lo.disabled = true; hi.disabled = true;
+    });
+  });
+  return done;
+}
+
+function openLeaks() {
+  const leaks = H.topLeaks(12);
+  const html = leaks.length ? `<div class="leaks">${leaks.map((l, k) => `<div class="leak"><b>${k + 1}</b><span>${l.label}</span><em>${l.ev ? `${l.ev.toFixed(1)} BB` : `${l.n}×`}</em></div>`).join('')}</div>
+    <p class="small dim">Counted only on exact solver spots, when your action was one the solver uses less than 15% of the time. Ranked by BB lost where the solver priced it, otherwise by how often and how far off.</p>`
+    : '<p class="dim">No leaks yet. Play some hands with the coach on.</p>';
+  return openPanel('Leaks', html);
+}
+function openHands() {
+  const hands = H.history.hands.slice(-60).reverse();
+  return openPanel('Hands', hands.length ? `<div class="hrows">${handRows(hands)}</div>` : '<p class="dim">No hands yet.</p>');
+}
+$('menuLeaks').addEventListener('click', openLeaks);
+$('menuHands').addEventListener('click', openHands);
+$('modeDrills').addEventListener('click', () => openDrills({ strategies, loadStrategy, seats: settings.seats, openPanel, closePanel, H, gridHTML, nodeMixes, BB }));
+$('status').addEventListener('click', (e) => { if (e.target.closest('.why-btn')) { e.stopPropagation(); openCoachPanel(); } });
+
 // ---------- menu ----------
 function showMenu() {
   paused = true;
@@ -912,6 +1166,8 @@ function showMenu() {
   $('modeSub').textContent = session.hands
     ? `${game.players.length} players · ${session.hands} hands · ${net >= 0 ? '+' : ''}${net.toFixed(1)} BB${session.pfN ? ` · preflop ${Math.round(100 * session.pfGood / session.pfN)}%` : ''}`
     : `No-Limit Hold'em · 100 BB · ${settings.seats} players`;
+  const lk = H.topLeaks(1)[0];
+  $('drillSub').textContent = lk ? `Top leak: ${lk.label}` : 'Preflop spots from your leaks';
   $('menu').classList.add('on');
 }
 function play() {

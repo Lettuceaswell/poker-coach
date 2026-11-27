@@ -17,7 +17,7 @@ function ensureWorker() {
   worker = new Worker(new URL('./postflop/worker.js', import.meta.url), { type: 'module' });
   worker.onmessage = (e) => {
     const m = e.data;
-    if (m.rid !== undefined) { pendingRanges.get(m.rid)?.(m.ranges); pendingRanges.delete(m.rid); return; }
+    if (m.rid !== undefined) { pendingRanges.get(m.rid)?.(m.ranges !== undefined ? m.ranges : m); pendingRanges.delete(m.rid); return; }
     if (current && m.id === current.id) onUpdate(m, current);
   };
   return worker;
@@ -26,10 +26,12 @@ function ensureWorker() {
 export function setUpdateHandler(fn) { onUpdate = fn; }
 
 // ranges.js combo order -> solver combo order
+let comboMap = null;
+const getMap = () => (comboMap ||= COMBOS.map(([a, b]) => comboIndex(a, b)));
 const toSolverOrder = (() => {
   let map = null;
   return (w) => {
-    if (!map) map = COMBOS.map(([a, b]) => comboIndex(a, b));
+    if (!map) map = getMap();
     const out = new Float32Array(1326);
     for (let j = 0; j < 1326; j++) out[map[j]] = w[j];
     return out;
@@ -126,4 +128,23 @@ export function stopAll() {
 
 export function forgetHand(handNo) {
   for (const k of [...started.keys()]) if (!k.startsWith(handNo + ':')) started.delete(k);
+}
+
+// Full detail for the hero's current node: every combo's strategy, both ranges, and the
+// value of each action for the hero's hand. Resolves null if no solve is running.
+export function detail(game, heroSeat) {
+  if (!worker || !current) return Promise.resolve(null);
+  const key = `${game.handNo}:${game.street}`;
+  if (!started.has(key)) return Promise.resolve(null);
+  const hero = game.players[heroSeat];
+  const r = ++rid;
+  return new Promise(res => {
+    pendingRanges.set(r, (m) => {
+      if (!m || m.error) return res(null);
+      if (m.player !== current.heroSide) return res(null);
+      res({ actions: m.actions, probs: m.probs, range: m.range, oppRange: m.oppRange, values: m.values, toSolver: getMap() });
+    });
+    worker.postMessage({ cmd: 'detail', id: started.get(key), rid: r, acts: streetActs(game, game.street), hero: comboIndex(hero.cards[0], hero.cards[1]) });
+    setTimeout(() => { if (pendingRanges.has(r)) { pendingRanges.delete(r); res(null); } }, 4000);
+  });
 }

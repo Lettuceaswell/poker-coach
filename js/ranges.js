@@ -82,7 +82,7 @@ function draw(w, total, rng) {
 
 // Percentile of a hand's strength on a board vs all other combos (0..1), cached per board.
 const strengthCache = new Map();
-function strengthTable(board) {
+export function strengthTable(board) {
   const key = board.join(',');
   if (strengthCache.has(key)) return strengthCache.get(key);
   const dead = new Set(board);

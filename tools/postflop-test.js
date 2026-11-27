@@ -325,12 +325,149 @@ console.log('\ni. Suit isomorphism');
   check(F.isomorphism === 2 && asym < 1e-5, `i: depth-limited flop, sampled leaves + isomorphism: root strategy symmetric (max ${asym.toExponential(1)})`);
 }
 
+// ------------------------------------------------------------------ v ---
+console.log('\nv. Action values');
+{
+  const tv = performance.now();
+  const blocks = (cards, i) => { const [a, b] = comboCards(i); return cards.includes(a) || cards.includes(b); };
+  // Compatible weight of `opp` (Float32Array 1326) against combo i.
+  const compat = (opp, i) => {
+    const [a, b] = comboCards(i);
+    let t = 0;
+    for (let j = 0; j < NUM_COMBOS; j++) { if (opp[j] && !blocks([a, b], j)) t += opp[j]; }
+    return t;
+  };
+  const rel = (x, y) => Math.abs(x - y) / (1 + Math.abs(y));
+  // Identity sum_a sigma_a * values_a == node value (independent full-node
+  // pass), base offset, fold == 0. Returns the max error.
+  function identity(s, path) {
+    const info = s.nodeInfo(path), p = info.player, acts = s.actionsAt(path);
+    const ev = s._comboEvs(path, p);
+    const off = info.pot / 2 + info.bets[p];
+    const TR = s.actionValueTable(path, { base: 'root' }), k = TR.k;
+    let err = TR.player === p && k === acts.length ? 0 : Infinity, n = 0, foldErr = 0, spot = -1;
+    for (let i = 0; i < NUM_COMBOS; i++) {
+      const sig = s.strategyAt(path, i);
+      const vr = Number.isNaN(TR.values[i * k]) ? null : Array.from(TR.values.subarray(i * k, i * k + k));
+      if (!sig) { if (vr !== null) err = Infinity; continue; }
+      if (!vr) { if (Number.isFinite(ev[i])) err = Infinity; continue; }
+      n++;
+      if (spot < 0 && n === 5) spot = i;
+      err = Math.max(err, rel(sig.reduce((t, x, a) => t + x * vr[a], 0), ev[i]));
+    }
+    // actionValues() (default 'fold' base) is the table's row shifted by
+    // pot/2 + bet, with fold exactly 0.
+    const vf = s.actionValues(path, spot);
+    if (!vf || vf.length !== k) err = Infinity;
+    else {
+      vf.forEach((x, a) => { err = Math.max(err, rel(x, TR.values[spot * k + a] + off)); });
+      acts.forEach((a, j) => { if (a.type === 'fold' && vf[j] !== 0) foldErr = Infinity; });
+    }
+    return { err: Math.max(err, foldErr), n };
+  }
+  // Root: range average of node values (weight * compatible reach) == evs().
+  function rootEvs(s) {
+    let err = 0;
+    const got = [];
+    for (let p = 0; p < 2; p++) {
+      const own = s.rangeAt([], p), opp = s.rangeAt([], 1 - p);
+      const acting = p === s.nodeInfo([]).player;
+      const T = acting ? s.actionValueTable([], { base: 'root' }) : null, other = acting ? null : s._comboEvs([], p);
+      let num = 0, den = 0;
+      for (let i = 0; i < NUM_COMBOS; i++) {
+        if (!own[i]) continue;
+        const w = own[i] * compat(opp, i);
+        const v = acting ? s.strategyAt([], i).reduce((t, x, a) => t + x * T.values[i * T.k + a], 0) : other[i];
+        num += w * v; den += w;
+      }
+      got.push(num / den);
+    }
+    // evs() last: on a flop it builds the exact leaf matrices, which values
+    // passes would then reuse instead of walking the runouts.
+    const evs = s.evs();
+    for (let p = 0; p < 2; p++) err = Math.max(err, rel(got[p], evs[p]));
+    return { err, evs };
+  }
+  // Chance consistency: value of the action that closes the street equals the
+  // card-removal-weighted average of the next street's node values.
+  function chanceAvg(s, path, a, hands) {
+    const p = s.nodeInfo(path).player, board = s.nodeInfo(path).board;
+    const opp = s.rangeAt(path, 1 - p);
+    const cards = [];
+    for (let c = 0; c < 52; c++) if (!board.includes(c)) cards.push(c);
+    const w = 1 / (cards.length - 4);
+    const acc = new Map(hands.map(h => [h, 0]));
+    for (const c of cards) {
+      const ev = s._comboEvs([...path, a, c], p), oc = s.rangeAt([...path, a, c], 1 - p);
+      for (const h of hands) if (!blocks([c], h)) acc.set(h, acc.get(h) + w * compat(oc, h) * ev[h]);
+    }
+    let err = 0;
+    const T = s.actionValueTable(path, { base: 'root' });
+    for (const h of hands) err = Math.max(err, rel(acc.get(h) / compat(opp, h), T.values[h * T.k + a]));
+    return err;
+  }
+  const inRange = (s, path, k) => {
+    const T = s.actionValueTable(path), out = [];
+    for (let i = 0; i < NUM_COMBOS && out.length < k; i += 7) if (!Number.isNaN(T.values[i * T.k])) out.push(i);
+    return out;
+  };
+
+  // River.
+  {
+    const s = createSolver({ board: C('Qh8d5c4s2h'), pot: 12, stack: 60, ranges: [topRange(0.35), topRange(0.3)] });
+    s.step(150);
+    const bet = s.actionsAt([]).findIndex(a => a.type === 'bet');
+    let worst = 0, n = 0;
+    for (const path of [[], [0], [bet], [0, bet]]) { const r = identity(s, path); worst = Math.max(worst, r.err); n += r.n; }
+    const re = rootEvs(s);
+    check(worst < 1e-6, `v: river: sum sigma*values == node value, fold == 0, bases differ by pot/2 + bet, ${n} combo-nodes (max rel err ${worst.toExponential(1)})`);
+    check(re.err < 1e-6, `v: river: root values average to evs() ${re.evs.map(x => x.toFixed(4)).join(' / ')} (rel err ${re.err.toExponential(1)})`);
+    const ak = comboIndex(...C('AhKh')), vals = s.actionValues([bet], ak);
+    console.log(`     river AhKh facing ${s.actionsAt([bet]).map((a, k) => `${a.type} ${vals[k] >= 0 ? '+' : ''}${vals[k].toFixed(2)}`).join(' · ')}`);
+    check(s.actionValues([], comboIndex(...C('Qd8h'))) === null && s.actionValues([0, 0], ak) === null, 'v: river: null for a blocked combo and off a decision node');
+  }
+  // Turn (two-tone: isomorphism on, path through non-representative rivers).
+  {
+    const s = createSolver({ board: C('AsJh7s4h'), pot: 10, stack: 30, ranges: [topRange(0.2), topRange(0.18)] });
+    s.step(40);
+    const cc = s.actionsAt([]).findIndex(a => a.type === 'check');
+    let worst = 0, n = 0;
+    for (const path of [[], [cc], [cc, cc, C('2c')[0]], [cc, cc, C('2d')[0]], [cc, cc, C('Ks')[0], 0], [1, 1, C('9c')[0]]]) {
+      const r = identity(s, path); worst = Math.max(worst, r.err); n += r.n;
+    }
+    const re = rootEvs(s);
+    const ch = chanceAvg(s, [cc], cc, inRange(s, [cc], 12));
+    check(worst < 1e-6, `v: turn (${s.isomorphism} perms): identity on 6 nodes incl. dealt rivers, ${n} combo-nodes (max rel err ${worst.toExponential(1)})`);
+    check(re.err < 1e-6, `v: turn: root values average to evs() (rel err ${re.err.toExponential(1)})`);
+    check(ch < 1e-5, `v: turn: check-back value == card-weighted average over all rivers (rel err ${ch.toExponential(1)}; weights from Float32 rangeAt)`);
+  }
+  // Depth-limited flop, sampled leaves (values walk the leaves exactly).
+  {
+    const s = createSolver({ board: C('Ks9h6d'), pot: 10, stack: 40, ranges: [topRange(0.1), topRange(0.09)] });
+    s.step(30);
+    const cc = s.actionsAt([]).findIndex(a => a.type === 'check');
+    const ai = s.actionsAt([]).findIndex(a => a.type === 'allin');
+    const t = C('2c')[0];
+    let worst = 0, n = 0;
+    for (const path of [[], [cc], [ai], [cc, cc, t], [cc, cc, t, cc]]) { const r = identity(s, path); worst = Math.max(worst, r.err); n += r.n; }
+    const re = rootEvs(s);
+    const ch = chanceAvg(s, [cc], cc, inRange(s, [cc], 6));
+    check(worst < 1e-6, `v: depth-limited flop: identity incl. turn nodes and the all-in runout, ${n} combo-nodes (max rel err ${worst.toExponential(1)})`);
+    check(re.err < 1e-6, `v: flop: root values (leaf walks) average to evs() (exact matrices) (rel err ${re.err.toExponential(1)})`);
+    console.log(`     (section v ${fmtMs(performance.now() - tv)})`);
+    check(ch < 1e-5, `v: flop: check-back value == card-weighted average over all turns, exact matrices now built (rel err ${ch.toExponential(1)})`);
+  }
+}
+
 // ------------------------------------------------------------------ w ---
 console.log('\nw. Worker handler (Node)');
 await new Promise(resolve => {
   const msgs = [];
   const board = C('Qh8d5c4s2h');
   const hands = [comboIndex(...C('AhKh')), comboIndex(...C('Qs8s')), comboIndex(...C('7h6h')), comboIndex(...C('Qd8h'))];
+  const r1Range = topRange(0.4);
+  let r1Combos = 0;
+  for (let i = 0; i < NUM_COMBOS; i++) { const [a, b] = comboCards(i); if (r1Range[i] > 0 && !board.includes(a) && !board.includes(b)) r1Combos++; }
   const handle = createWorkerHandler(m => {
     msgs.push(m);
     if (!m.done) return;
@@ -340,12 +477,50 @@ await new Promise(resolve => {
     check(st && st.probs && Math.abs(st.probs.reduce((a, b) => a + b, 0) - 1) < 1e-6 && st.actions.length === st.probs.length, 'w: strategies carry actions + probabilities');
     check(m.strategies[hands[3]].probs === null, 'w: board-blocked hand reports probs: null');
     check(upd.every(x => x.id === 'r1'), `w: ${upd.length} interim updates`);
-    // Stop test on a turn solve.
+    // detail on the finished river job (the reply is posted synchronously).
+    handle({ cmd: 'detail', id: 'r1', rid: 'd1', acts: [], hero: hands[0] });
+    {
+      const d = msgs.find(x => x.rid === 'd1'), k = d && d.actions ? d.actions.length : 0;
+      const row = d && !d.error ? Array.from(d.probs.subarray(hands[0] * k, hands[0] * k + k)) : [];
+      let rowsOk = !!d && !d.error, inRange = 0;
+      for (let i = 0; rowsOk && i < NUM_COMBOS; i++) {
+        const r = d.probs.subarray(i * k, i * k + k);
+        if (Number.isNaN(r[0])) { if (d.range[i] !== 0 || r.some(x => !Number.isNaN(x))) rowsOk = false; continue; }
+        inRange++;
+        if (Math.abs(r.reduce((a, b) => a + b, 0) - 1) > 1e-5) rowsOk = false;
+      }
+      check(rowsOk && d.player === 0 && inRange === r1Combos, `w: detail on the finished river job: ${inRange} in-range rows sum to 1, NaN elsewhere`);
+      check(d && row.every((x, a) => Math.abs(x - st.probs[a]) < 1e-6) && d.values && d.values.length === k,
+        `w: detail probs match the snapshot strategy; hero values ${d && d.values && d.actions.map((a, j) => `${a.type} ${d.values[j].toFixed(2)}`).join(' · ')}`);
+    }
+    const replies = [];
+    const grab = rid => replies.find(x => x.rid === rid);
+    // Stop test on a turn solve, with a detail request while it is live.
     const msgs2 = [];
-    const h2 = createWorkerHandler(m2 => {
+    let liveSent = false;
+    const h2 = createWorkerHandler((m2, transfer) => {
+      if (m2.rid) { replies.push(m2); m2.transfer = transfer; return; }
       msgs2.push(m2);
+      if (!m2.done && !liveSent) {
+        liveSent = true;
+        const t0 = performance.now();
+        h2({ cmd: 'detail', id: 't1', rid: 'live', acts: [{ type: 'check', amount: 0 }], hero: hands[0] });
+        const d = grab('live');
+        const ms = performance.now() - t0;
+        const k = d && d.actions ? d.actions.length : 0;
+        check(d && !d.error && d.player === 1 && k > 1 && d.probs instanceof Float32Array && d.probs.length === NUM_COMBOS * k &&
+          d.range.length === NUM_COMBOS && d.oppRange.length === NUM_COMBOS && Array.isArray(d.values) && d.values.length === k,
+          `w: detail on a live turn job (after OOP check): player ${d && d.player}, ${k} actions, probs ${d && d.probs && d.probs.length}, values ${d && d.values && d.values.map(x => x.toFixed(2)).join('/')} (${fmtMs(ms)})`);
+        check(d && d.transfer && d.transfer.length === 3 && d.transfer.includes(d.probs.buffer) && d.transfer.includes(d.range.buffer) && d.transfer.includes(d.oppRange.buffer), 'w: detail transfers the probs / range / oppRange buffers');
+      }
       if (m2.done) {
         check(m2.reason === 'stopped', `w: stop honoured (${m2.iter} iterations, ${m2.elapsedMs} ms)`);
+        h2({ cmd: 'detail', id: 't1', rid: 'after', acts: [], hero: hands[3] });
+        const a = grab('after');
+        check(a && !a.error && a.player === 0 && a.values === null && Number.isNaN(a.probs[hands[3] * a.actions.length]),
+          'w: detail on the finished turn job: blocked hero gives values null and NaN probs');
+        h2({ cmd: 'detail', id: 'nope', rid: 'x' });
+        check(grab('x') && typeof grab('x').error === 'string' && !('probs' in grab('x')), `w: detail on an unknown job posts { rid, error } (${grab('x') && grab('x').error})`);
         resolve();
       }
     });
@@ -384,6 +559,7 @@ function solveUntil(input, target, maxMs, every) {
     console.log(`     turn ${fmtBoard(board)}: ${r.s.combos.join('x')} combos, iso perms ${r.s.isomorphism}, ${r.s.stats.actNodes} decision nodes, build ${fmtMs(r.buildMs)}, ${perIt.toFixed(0)} ms/iteration, ` +
       (r.hit !== null ? `1% pot after ${r.s.iterations} it in ${fmtMs(r.hit)}` : `exploit ${r.e.toFixed(2)}% after ${fmtMs(r.solveMs)}`) +
       `, memory ${mb(r.s.memoryBytes)}  [target ~10 s: ${r.hit !== null && r.hit < 10000 ? 'MET' : 'MISS'}]`);
+    console.log(`        ${detailLines(r.s, 'river root')}`);
   }
   // Depth-limited flop: exact exploitability at fixed solve times.
   const flopBoards = QUICK ? [C('Ks9h6d')] : [C('Ks9h6d'), C('AsJh7s')];
@@ -392,8 +568,12 @@ function solveUntil(input, target, maxMs, every) {
     const s = createSolver({ board, pot: 10, stack: 90, ranges });
     let solveMs = performance.now() - t0;
     const parts = [];
+    let detailLine = '';
     for (const mark of QUICK ? [2000] : [2000, 5000, 10000]) {
       while (solveMs < mark) { const a = performance.now(); s.step(1); solveMs += performance.now() - a; }
+      // detail cost before exploitability() builds the leaf matrices (a
+      // worker flop job never builds them unless measureExploit is on).
+      if (!parts.length) detailLine = detailLines(s, 'turn root');
       const a = performance.now();
       const e = s.exploitability();
       parts.push(`${fmtMs(mark)}: ${s.iterations} it, exploit ${e.toFixed(1)}% (${root(s)})`);
@@ -401,6 +581,12 @@ function solveUntil(input, target, maxMs, every) {
     }
     console.log(`     flop DL ${fmtBoard(board)}: ${s.combos.join('x')} combos, iso perms ${s.isomorphism}, memory ${mb(s.memoryBytes)} (+${mb(s.exploitMemoryBytes)} once exploitability() runs)`);
     for (const p of parts) console.log(`        ${p}`);
+    const again = performance.now();
+    detailMs(s, [], comboIndex(...C('QhQd')));
+    const againMs = performance.now() - again;
+    s.step(1); // new iteration: the value cache no longer applies
+    console.log(`        ${detailLine} (leaf walks); repeat at root, another hero ${fmtMs(againMs)} (cached)`);
+    console.log(`        ${detailLines(s, 'turn root')} (exact leaf matrices built by exploitability())`);
   }
   // Full flop (turn + river betting) sizing, coarse abstraction.
   for (const [label, sizes] of [
@@ -427,6 +613,19 @@ function solveUntil(input, target, maxMs, every) {
   }
 }
 
+// Cost of the worker's detail work (strategy table, both ranges, hero values).
+function detailMs(s, path, hero) {
+  const t0 = performance.now();
+  const tab = s.strategyTable(path);
+  s.rangeAt(path, tab.player); s.rangeAt(path, 1 - tab.player);
+  s.actionValues(path, hero);
+  return performance.now() - t0;
+}
+function detailLines(s, next) {
+  const cc = s.actionsAt([]).findIndex(a => a.type === 'check');
+  const hero = comboIndex(...C('AhKd'));
+  return `detail: root ${fmtMs(detailMs(s, [], hero))}, after OOP check ${fmtMs(detailMs(s, [cc], hero))}, ${next} ${fmtMs(detailMs(s, [cc, cc, C('2h')[0]], hero))}`;
+}
 function fmtBoard(b) { return b.map(c => '23456789TJQKA'[c >> 2] + 'shdc'[c & 3]).join(''); }
 function root(s) {
   const acts = s.actionsAt([]);

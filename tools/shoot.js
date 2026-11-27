@@ -28,8 +28,9 @@ await p.click('#sheetBg', { position: { x: 20, y: 20 } }); await p.waitForTimeou
 // play several hands calling/checking to see flops and showdowns
 let showdown = false;
 for (let k = 0; k < 120 && !showdown; k++) {
-  await p.waitForFunction(() => document.querySelector('#actions button[data-a]'), null, { timeout: 30000 });
-  const a = await p.$eval('#actions button[data-a]', e => e.dataset.a);
+  if (await p.evaluate(() => document.getElementById('panel').classList.contains('on'))) { await p.click('#panelClose'); await p.waitForTimeout(350); continue; }
+  const a = await p.evaluate(() => { const b = document.querySelector('#actions [data-a="next"]') || document.querySelector('#actions button[data-a]'); return b ? b.dataset.a : null; });
+  if (!a) { await p.waitForTimeout(150); continue; }
   if (a === 'next') {
     const sd = await p.evaluate(() => window.__poker.game().result?.showdown);
     if (sd) { await shot('showdown'); showdown = true; break; }
