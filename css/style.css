@@ -526,3 +526,7 @@ small { font-size: 13px !important; }
 .f-cost { font-weight: 600; }
 /* the table under the open menu is covered anyway; keep its buttons out of the tab/crawl order */
 #app:has(~ #menu.on) { display: none; }
+
+/* lane a3: lab screen (inside #panel) */
+.lab-sec { margin: 0 0 18px; padding-top: 6px; border-top: 1px solid var(--line); }
+.f-in { flex: 1; min-width: 0; min-height: 44px; font-size: 15px; background: #1a1a1c; color: var(--text); border: 1.5px solid #6a6a70; border-radius: 10px; padding: 0 10px; max-width: 58%; }

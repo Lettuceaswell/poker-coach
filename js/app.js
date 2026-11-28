@@ -1,5 +1,6 @@
 import { Game } from './engine.js';
 import { makeBot, decide } from './bots.js';
+import { openLab } from './lab.js';
 import { rankOf, suitOf, rankLabel, SUIT_GLYPH, describe, evalHand } from './cards.js';
 import { mapSpot, handClass, className, strategyAt, decodeStrategy } from './coach.js';
 import { STACK } from './preflop-tree.js';
@@ -1325,6 +1326,7 @@ window.__poker = { game: () => game, settings, play, coach: () => cs };
 // ---------- feature screens: spot library, hand review, report, export (lane b2) ----------
 const featCtx = () => ({ strategies, loadStrategy, seats: settings.seats, openPanel, panelView, H });
 $('menuLibrary').addEventListener('click', () => openLibrary(featCtx()));
+$('menuLab').addEventListener('click', () => openLab(featCtx()));
 $('menuReview').addEventListener('click', () => openReview(featCtx()));
 $('menuReport').addEventListener('click', () => openReport(featCtx()));
 $('menuExport').addEventListener('click', () => openExport(featCtx()));
