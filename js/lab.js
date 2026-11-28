@@ -105,7 +105,7 @@ export function openLab(ctx) {
     return [`Board ${p.board}, bet ${p.size} percent of pot, pot ${p.pot} BB, stack ${p.stack} BB`, outLine(r.player === 1 ? 'IP' : 'OOP', r), `${r.combos || 0} combos in the acting range, 600 solver iterations`];
   });
   // ---- per-street lock: real fixed nodes in the solver (js/postflop/solver.js input.locks)
-  const LK_ITERS = 150, STREETS = ['turn', 'river'];
+  const LK_ITERS = 100, STREETS = ['turn', 'river'];
   const locks = { turn: null, river: null };
   const baseCache = new Map();
   const lockInput = (p) => {
