@@ -68,11 +68,11 @@ function pickScenario(n, H) {
   const all = scenarios(n);
   const due = H.dueDrill();
   if (due && due.n === n) { const s = all.find(x => x.label === due.label); if (s) return { sc: s, cls: due.cls, item: due }; }
-  // deliberate practice: ~90% of fresh items come from the top priced leaks, weighted by BB cost
+  // deliberate practice: ~95% of fresh preflop items come from the top priced leaks, weighted by BB cost
   const plan = leakPlan(H);
   const cost = (s) => { const l = leakForPre(plan, s.key); return l ? (l.bb || l.cost || 1) : 0; };
   const fromLeaks = all.filter(s => cost(s) > 0);
-  let pool = fromLeaks.length && Math.random() < 0.9 ? fromLeaks : all;
+  let pool = fromLeaks.length && Math.random() < 0.95 ? fromLeaks : all;
   const prev = lastSc[lastSc.length - 1];
   if (prev) {
     const fresh = pool.filter(s => !sameKind(s, prev));

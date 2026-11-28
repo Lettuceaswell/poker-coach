@@ -12,7 +12,7 @@ const GAPS = [[2, 3], [9, 11], [20, 24]];
 import { fadeLevel, scaffoldHTML, wireHint, postflopParts, postflopExplain, optName } from './drill-coach.js';
 import { rewardFor, rewardHTML } from './reward.js';
 import { leakPlan, leakLabel, leakForPost, postflopProb, skillEstimate, targetDifficulty, diffWeight, pickWeighted, difficultyLine, progressLine, levelBefore } from './skill.js';
-const QK = 'pf-drill-q', MAX_GAP = 4; // at least one postflop item in every 5 so retrieval of postflop stays practiced
+const QK = 'pf-drill-q', MAX_GAP = 6; // at least one postflop item in every 7 so retrieval of postflop stays practiced
 let sinceLast = 0, SPOTS = null, installed = false, ctxRef = null, openPre = null, lastStreet = '';
 
 const loadQ = () => { try { return JSON.parse(localStorage.getItem(QK)) || { n: 0, q: [] }; } catch { return { n: 0, q: [] }; } };
@@ -38,7 +38,7 @@ function pick(all, st) {
   if (!pool.length) pool = all;
   const plan = leakPlan(H);
   const target = targetDifficulty(skillEstimate(H, null).skill);
-  const s = pickWeighted(pool, (x) => diffWeight(1 - Math.max(...x.mix), target) * (leakForPost(plan, x) ? 3 : 1));
+  const s = pickWeighted(pool, (x) => diffWeight(1 - Math.max(...x.mix), target) * (leakForPost(plan, x) ? 12 : 1));
   return { s, box: 0, review: false, leak: leakForPost(plan, s) };
 }
 
@@ -95,7 +95,7 @@ async function show() {
   });
 }
 
-// postflop chance follows the postflop share of leak cost (0.45 with no leaks yet), with a floor of one in 5
+// postflop chance follows the postflop share of leak cost (0.45 with no leaks yet), with a floor of one in 7
 function wantPost() {
   if (isDue(loadQ())) return true;
   if (sinceLast >= MAX_GAP || Math.random() < postflopProb(leakPlan(ctxRef.H))) return true;
