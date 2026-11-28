@@ -108,11 +108,12 @@ function wantPost() {
   if (sinceLast >= MAX_GAP || Math.random() < postflopProb(leakPlan(ctxRef.H))) return true;
   sinceLast++; return false;
 }
-// Quiz items are interleaved: one when a missed quiz item is due, a quiz item is due from an earlier day, or
-// after 7 other items (so at least 1 in 8); never two quiz items in a row.
+// Only DUE quiz reviews are interleaved: a quiz item missed in this session, or due from an earlier day.
+// There is no forced new-item slot (it stalled the frozen drill loop); new quiz practice is in the Quiz menu.
+// Never two quiz items in a row.
 function quizTurn() {
   streamN++;
-  const t = sinceQuiz >= 1 && (QZ.inSessionDue(streamN) || sinceQuiz >= 7 || (QZ.crossDayDue() && sinceQuiz >= 2));
+  const t = sinceQuiz >= 1 && (QZ.inSessionDue(streamN) || (QZ.crossDayDue() && sinceQuiz >= 2));
   if (t) sinceQuiz = 0; else sinceQuiz++;
   return t;
 }
