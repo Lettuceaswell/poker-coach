@@ -37,7 +37,8 @@ button { font-family: inherit; color: inherit; background: none; border: 0; padd
 #seats { position: relative; flex: 1 1 auto; min-height: 230px; }
 .seat { position: absolute; width: 92px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; transition: opacity .3s; }
 .seat.folded { opacity: 1; }
-.seat.folded > :not(.bet-chip) { opacity: .72; }
+.seat.folded .ava-wrap { opacity: .45; }
+.seat.folded .nm, .seat.folded .stk { opacity: .62; }
 .seat.out { opacity: .15; }
 .timer { width: 24px; height: 24px; border-radius: 50%; margin-bottom: 8px; visibility: hidden;
   background: conic-gradient(var(--go) calc(var(--p, 0) * 1turn), #1d1d1f 0); }
@@ -218,8 +219,8 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 
 /* ===== design pass ===== */
 /* bet chips lean toward the middle of the table */
-.seat .bet-chip { transform: translateX(var(--dx, 0)); }
-.seat .bet-chip.won { translate: calc(var(--dx, 0) * 1.8) 0; } /* the wonPop animation overrides transform, so lean the winner chip toward the middle with translate; clears a neighbour's shown cards */
+.seat .bet-chip { position: absolute; margin: 0; z-index: 3; white-space: nowrap; }
+.seat .bet-chip.won { position: absolute; margin: 0; }
 .bet-chip { box-shadow: inset 0 0 0 1.5px rgba(245, 225, 74, .18); }
 
 /* the button pulses; a sweep runs through the seats in acting order */
@@ -535,4 +536,26 @@ small { font-size: 13px !important; }
 /* drills: leak label, difficulty line, progress line (run 3) */
 .drill-leak { text-align: center; margin: -6px 0 6px !important; color: #f2f2f2; font-weight: 600; }
 .drill-why { text-align: center; margin: 0 0 10px !important; }
+/* note 3: two face-down backs per opponent still in the hand; placed by placeTable() from real rects */
+.opp-backs { position: absolute; left: 0; top: 0; display: flex; gap: 2px; z-index: 2; pointer-events: none; }
+.opp-backs .card { width: 22px; height: 31px; border-radius: 5px; box-shadow: 0 1px 6px rgba(0, 0, 0, .6); }
+.opp-backs .card:first-child { transform: rotate(-5deg); }
+.opp-backs .card:last-child { transform: rotate(5deg); }
+@media (max-height: 760px) { .opp-backs .card { width: 19px; height: 27px; } }
+
+/* note 5: the solver mix line is a wrapping row of whole entries (never cut mid-entry), the pot sits on the first row */
+.pot-row { position: relative; height: 112px; }
+.pot-row .pot { position: absolute; right: 0; top: 0; font-size: 28px; line-height: 22px; height: 24px; }
+.coach-top { display: flex; align-items: center; gap: 6px; padding-right: 108px; height: 44px; }
+.coach-top .ct-txt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.coach-top .why-btn { flex: none; }
+.seat { pointer-events: none; }
+.seat > * { pointer-events: auto; }
+.mixline { display: flex; flex-wrap: wrap; gap: 0 10px; font-size: 14px; line-height: 19px; margin-top: 0; }
+.mixline .mx { white-space: nowrap; }
+.mixfoot { display: flex; align-items: center; gap: 10px; margin-top: 3px; height: 8px; }
+.mixfoot .mixbar { margin-top: 0; flex: 0 0 160px; }
+
+.status { padding-right: 112px; }
+.status .coach { margin-right: -112px; }
 .progress-line { margin: 8px 0; padding: 6px 12px; border-left: 3px solid #8a8a8a; background: rgba(255, 255, 255, .05); border-radius: 8px; font-size: 14px; color: #f2f2f2; }

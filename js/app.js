@@ -245,14 +245,16 @@ function render() {
     const [x, y] = spots[k];
     const showCards = game.handOver && p.shown && !p.folded && p.cards.length;
     const w = wins.get(i);
-    const cls = ['seat', p.folded && !game.handOver ? 'folded' : '', p.out ? 'out' : '', i === acting ? 'acting' : '', w ? 'winner' : ''].join(' ');
+    const cls = ['seat', p.folded && !p.out ? 'folded' : '', p.out ? 'out' : '', i === acting ? 'acting' : '', w ? 'winner' : ''].join(' ');
     const label = p.last && !game.handOver ? `<span class="nm last-${p.last.toLowerCase()}" style="color:${p.last === 'Fold' ? '#c8c8cc' : p.last === 'Check' || p.last === 'Call' ? '#d0d0d4' : '#ffb4a8'}">${p.last}</span>` : `<span class="nm">${p.name}</span>`;
-    const mini = showCards ? `<div class="mini">${p.cards.map(c => cardHTML(c, winCards.has(c) ? 'hilite' : '')).join('')}</div>` : '';
+    const mini = showCards ? `<div class="mini">${p.cards.map(c => cardHTML(c, winCards.has(c) ? 'hilite' : '')).join('')}</div>`
+      : !p.folded && !p.out ? '<div class="opp-backs"><div class="card back"></div><div class="card back"></div></div>' : '';
     const below = w ? `<span class="bet-chip won">+${num(w.amount)}</span>` : `<span class="bet-chip">${p.bet ? num(p.bet) : ''}</span>`;
     const dx = Math.round(Math.sign(50 - x) * Math.min(26, Math.abs(50 - x) * 0.7));
     return `<div class="${cls}" id="seat-${i}" style="left:${x}%;top:${y}%;--dx:${dx}px">
       <div class="ava-wrap"><div class="pos ${pos[i] === 'BTN' ? 'btn-pos' : ''}">${pos[i]}</div>
-        <div class="timer"></div>${mini}</div>
+        <div class="timer"></div>${showCards ? mini : ''}</div>
+      ${showCards ? '' : mini}
       ${label}
       <span class="stk">${num(p.stack)}</span>
       ${below}
@@ -295,7 +297,53 @@ function render() {
   renderHeroCards(h);
   renderActions();
   applySweep();
+  placeTable();
 }
+
+// Bet chips and the two card backs of each opponent are placed from the real rects of the seat parts, the board and
+// the other chips, not from fixed offsets: every candidate spot around the avatar is tested and the nearest free one wins.
+function placeTable() {
+  const seatsEl = $('seats'), sr = seatsEl.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+  const board = $('board').getBoundingClientRect();
+  const R = (e) => e.getBoundingClientRect();
+  const hit = (a, b, m = 3) => a.left < b.right + m && a.right > b.left - m && a.top < b.bottom + m && a.bottom > b.top - m;
+  const seats = [...seatsEl.querySelectorAll('.seat')];
+  const fixed = [{ left: 0, right: vw, top: board.top - 1, bottom: board.bottom + 1 }]; // board cards and empty slots
+  const info = seats.map(s => {
+    const ava = R(s.querySelector('.pos')), sb = R(s);
+    for (const e of s.querySelectorAll('.pos, .nm, .stk, .mini .card')) fixed.push(R(e));
+    return { s, ava, sb, cx: (ava.left + ava.right) / 2, cy: (ava.top + ava.bottom) / 2 };
+  });
+  const mid = { x: vw / 2, y: sr.top + sr.height * 0.55 };
+  const placed = [];
+  const put = (el, seat, pref) => {
+    if (!el) return;
+    el.style.left = '0px'; el.style.top = '0px'; el.style.translate = 'none';
+    const w = el.offsetWidth, h = el.offsetHeight; if (!w || !h) return; // layout size: a pop-in animation's scale must not shrink the reserved spot
+    let best = null;
+    for (let dy = -150; dy <= 170; dy += 4) for (let dx = -170; dx <= 170; dx += 4) {
+      const cx = seat.cx + dx, cy = seat.cy + dy, r = { left: cx - w / 2, right: cx + w / 2, top: cy - h / 2, bottom: cy + h / 2 };
+      if (r.left < 2 || r.right > vw - 2 || r.top < sr.top - 2 || r.bottom > board.top - 3) continue;
+      let ok = true;
+      for (const f of fixed) if (hit(r, f)) { ok = false; break; }
+      if (ok) for (const f of placed) if (hit(r, f)) { ok = false; break; }
+      if (!ok) continue;
+      const gx = Math.max(seat.ava.left - r.right, r.left - seat.ava.right, 0), gy = Math.max(seat.ava.top - r.bottom, r.top - seat.ava.bottom, 0);
+      const cost = Math.hypot(gx, gy) + pref * Math.hypot(cx - mid.x, cy - mid.y) * 0.12;
+      if (!best || cost < best.cost) best = { cost, r };
+    }
+    if (!best) { el.style.left = ''; el.style.top = ''; el.style.translate = ''; el.classList.add('unplaced'); return; }
+    el.classList.remove('unplaced');
+    const sbx = seat.sb.left, sby = seat.sb.top;
+    el.style.left = Math.round(best.r.left - sbx) + 'px'; el.style.top = Math.round(best.r.top - sby) + 'px';
+    placed.push(best.r);
+  };
+  // backs first (always present), then chips; both avoid every label, the board and each other
+  info.forEach(q => put(q.s.querySelector('.opp-backs'), q, 0));
+  info.forEach(q => put(q.s.querySelector('.bet-chip'), q, 1));
+}
+addEventListener('resize', () => { try { placeTable(); } catch {} });
+if (window.ResizeObserver) new ResizeObserver(() => { try { placeTable(); } catch {} }).observe($('seats'));
 
 function renderHeroCards(h) {
   const key = game.handNo + ':' + h.cards.join(',');
@@ -847,11 +895,11 @@ function coachHTML() {
     if (cs.loading) return '<span class="coach dim">Coach loading…</span>';
     if (cs.off) return `<span class="coach dim">${cs.pos} · ${cs.hand} · no solution here (${cs.why})</span>`;
     const parts = ordered(cs.mix).filter(m => m.hi >= m.lo)
-      .map(m => `<b class="${cs.pick === m ? 'picked' : ''}" style="color:${COLOR[m.t]}">${m.label}</b> ${m.lo === m.hi ? m.lo : m.lo + '–' + m.hi}`).join(' · ');
+      .map(m => `<span class="mx"><b class="${cs.pick === m ? 'picked' : ''}" style="color:${COLOR[m.t]}">${m.label}</b> ${m.lo === m.hi ? m.lo : m.lo + '–' + m.hi}</span>`).join('');
     const lv = cs.live ? `<span class="meter-row">${meter(cs.live)}</span>` : '';
     const anim = roll !== shownRoll ? ' anim' : '';
     shownRoll = roll;
-    return `<span class="coach"><span class="die${anim}">${roll}</span>${cs.pos} · ${cs.hand}${tag(cs)}<button class="why-btn">Why?</button><br>${parts}${mixBar(cs.mix)}${lv}</span>`;
+    return `<span class="coach"><span class="coach-top"><span class="ct-txt"><span class="die${anim}">${roll}</span>${cs.pos} · ${cs.hand}${tag(cs)}</span><button class="why-btn">Why?</button></span><span class="mixline">${parts}</span><span class="mixfoot">${mixBar(cs.mix)}${lv}</span></span>`;
   }
   if (graded) return graded.html;
   return '';
@@ -1352,7 +1400,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // test hook
-window.__poker = { game: () => game, settings, play, coach: () => cs };
+window.__poker = { forceCoach: (mix) => { if (!heroTurn) return false; const base = cs && !cs.off && !cs.loading ? cs : { pos: 'BB', hand: 'JTo' }; cs = withRoll({ ...base, mix: mix.map(m => ({ ...m })), live: null, solved: true }); $('status').innerHTML = coachHTML(); return true; }, game: () => game, settings, play, coach: () => cs };
 
 // ---------- feature screens: spot library, hand review, report, export (lane b2) ----------
 const featCtx = () => ({ strategies, loadStrategy, seats: settings.seats, openPanel, panelView, H });
