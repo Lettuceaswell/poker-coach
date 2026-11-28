@@ -29,7 +29,7 @@ export function leakLabel(l) {
 }
 // chance that the next item is postflop: scaled by the postflop share of leak cost; unchanged with no leaks
 export function postflopProb(plan, base = 0.45) {
-  return plan.any ? 0.15 + 0.4 * plan.postShare : base;
+  return plan.any ? 0.1 + 0.45 * plan.postShare : base;
 }
 // leak a preflop scenario key ("SB first in") targets, if it is one of the top leaks
 export function leakForPre(plan, key) { return plan.top.find(l => !l.post && l.key.split('|')[0] === key) || null; }

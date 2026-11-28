@@ -12,7 +12,7 @@ const GAPS = [[2, 3], [9, 11], [20, 24]];
 import { fadeLevel, scaffoldHTML, wireHint, postflopParts, postflopExplain, optName } from './drill-coach.js';
 import { rewardFor, rewardHTML } from './reward.js';
 import { leakPlan, leakLabel, leakForPost, postflopProb, skillEstimate, targetDifficulty, diffWeight, pickWeighted, difficultyLine, progressLine, levelBefore } from './skill.js';
-const QK = 'pf-drill-q', MAX_GAP = 6; // at least one postflop item in every 7 so retrieval of postflop stays practiced
+const QK = 'pf-drill-q', MAX_GAP = 8; // at least one postflop item in every 9 so retrieval of postflop stays practiced
 let sinceLast = 0, SPOTS = null, installed = false, ctxRef = null, openPre = null, lastStreet = '';
 
 const loadQ = () => { try { return JSON.parse(localStorage.getItem(QK)) || { n: 0, q: [] }; } catch { return { n: 0, q: [] }; } };
@@ -95,7 +95,7 @@ async function show() {
   });
 }
 
-// postflop chance follows the postflop share of leak cost (0.45 with no leaks yet), with a floor of one in 7
+// postflop chance follows the postflop share of leak cost (0.45 with no leaks yet), with a floor of one in 9
 function wantPost() {
   if (isDue(loadQ())) return true;
   if (sinceLast >= MAX_GAP || Math.random() < postflopProb(leakPlan(ctxRef.H))) return true;
