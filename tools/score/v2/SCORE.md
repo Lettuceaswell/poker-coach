@@ -77,7 +77,7 @@ Run 1-3 all carry the v1 veto `test-failure` (a LOG.md test fails in the /tmp wo
 | accuracy (20) | 8.71 | 8.76 | 10.26 | 1.55 | 3.10 |
 | speed (10) | 1.73 | 4.01 | 4.01 | 2.28 | 4.56 |
 | learning (20) | 13.33 | 13.33 | 14.45 | 1.12 | 2.24 |
-| legibility (20) | 10.32 | 10.32 | 10.36 | 0.04 | 0.50 |
+| legibility (20) | 10.32 | 10.32 | 10.36 | 0.04 | 0.50 |  (v1 frozen; see v2.1 table below) |
 | coaching (15) | 0 | 0 | 0 | 0 | 0.50 |
 | reach (15) | 0 | 0 | 0 | 0 | 0.50 |
 | non-veto total (100) | 34.09 | 36.42 | 39.08 | 4.99 | **9.98** (max(2 x 4.99, 1.0)) |
@@ -108,3 +108,20 @@ Commit own paths; `git worktree add --detach /tmp/<task>-snap <commit>`; symlink
 | B | calibration `resultText()` returns '' (reveal result text removed) | 10.32 (no change) | 0 (no change) | 0 (no change) |
 
 Copy B limitation: the base app has no `data-judgment`/`data-coach` hooks, so coaching is 0 before and after; the explanation sub-score cannot be shown dropping until a lane adds the hooks. The check's logic is coaching.js "explain" (empty before commit, >= 6 words after reveal, contains top action/frequency and >= 2 input numbers). Gaming copies C/D/E not run (deadline); logic: chip check requires a visible chip for every committed bet (hidden chip = violation, legibility.js); explain requires the true value/top action.
+
+
+## v2.1 re-freeze 2026-11-27 ~18:10 (orchestrator-approved, one time; interface and text formats unchanged)
+Changes (legibility.js, coaching.js only; v1 code, app interface, frozen text formats untouched):
+1. legibility.js: the hand loop no longer breaks after hero's 3rd decision (the 3rd-turn chip check still runs once); hands are played on (call/check/fold via the UI) until the result screen shows, wait limit = highlight wait + 26 s (was 28 s total). Result-screen text is now audited (base: 0/8 -> 8/8 combos reach the result; `noResult_*` notes gone). Chip/highlight logic unchanged.
+2. coaching.js reachability: calibration is reached by playing cash hands at fast speed (settings seeded `speed:fast, seats:6`), up to 200 steps / 40 s, preferring call/check/next so hero faces bets; plus a frozen fixture `ORBIT_SEED` (one orbit-1 hand in the app's own history schema holding a facing-bet call decision) so the orbit review always has a pivotal spot. Previously 40 taps / 12 s, never reached.
+3. coaching.js truth oracle: the true value comes from inside the judgment container: a `data-truth` attribute on/in it, else `The answer was N%` in its revealed text (calibration), else `Action NN%` pairs inside the container (drills/quiz). Never the whole page. Explain passes if it contains the true value (or any revealed answer of that container) and >= 2 input numbers; for the 2nd/3rd reveal in the same container (a calibration prompt holds two questions) the explain must be new/changed instead of empty-before. Calibration items are excluded from the reward buckets (no right/wrong action).
+Spec text above ("up to 160 taps") is superseded by item 2.
+
+| Category (max) | Run 1 | Run 2 | Run 3 | Spread | MDE = max(2 x spread, 0.5) |
+|---|---|---|---|---|---|
+| legibility (20) | 10.82 | 10.83 | 10.81 | 0.02 | 0.50 |
+| coaching (15) | 0 | 0 | 0 | 0 | 0.50 |
+| reach (15) | 0 | 0 | 0 | 0 | 0.50 |
+
+`--no-v1` runs on a 31a9280 copy (wall 55-56 s each; coaching module ~58 s alone, under the 70 s limit). accuracy/speed/learning keep their frozen v1 baselines above. Legibility rises 10.32 -> 10.82 only because the result screen is now sampled (base app, no app change). Accepted candidate fe72626 legibility under v2.1 (quick): 12.32 (chip 3.96, position 3.75, font 0.34, contrast 1.40, tap 0.49, clip 2.39), +1.50 over the v2.1 base.
+Self-check (coaching, calibration scaffold copy of base, quick): honest scaffold (definition/inputs/method/hint/explain with true value + inputs) 1.57; explain removed 1.35; generic fixed-text explain 1.35; base 0. Not proven (time): a full drill prompt copy and reward-after-hard-correct vs after-every-answer copies.

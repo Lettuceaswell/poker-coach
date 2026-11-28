@@ -18,7 +18,7 @@ const SNAP = () => {
   const outside = (() => { const cl = document.body.cloneNode(true); cl.querySelectorAll('[data-coach="inputs"]').forEach(e => e.remove()); return cl.innerText; })();
   return { type: c.getAttribute('data-judgment'), q, text: c.innerText, outside,
     definition: part('definition'), inputs: part('inputs'), method: part('method'), example: part('example'), hint: part('hint'), explain: part('explain'),
-    hasToggle: !!c.querySelector('[data-coach="hint-toggle"]'), hintExists: !!c.querySelector('[data-coach="hint"]'), reward: [...c.ownerDocument.querySelectorAll('[data-reward]')].filter(vis).length };
+    truthAttr: (c.querySelector('[data-truth]') || c).getAttribute('data-truth'), hasToggle: !!c.querySelector('[data-coach="hint-toggle"]'), hintExists: !!c.querySelector('[data-coach="hint"]'), reward: [...c.ownerDocument.querySelectorAll('[data-reward]')].filter(vis).length };
 };
 const ARITH = /\d[\d.,%$]*\s*(?:[x×*\/÷+\-−=]|times|divided by|plus|minus|over)\s*\$?\d/i;
 
@@ -58,9 +58,17 @@ async function playPrompt(p, idx) {
   const post = await snap(p) || await p.evaluate(() => ({ text: document.body.innerText, explain: [...document.querySelectorAll('[data-coach="explain"]')].map(e => e.innerText).join(' | '), reward: [...document.querySelectorAll('[data-reward]')].filter(e => e.checkVisibility()).length, hint: '', outside: '' }));
   return { pre, hintProbe, post, label, btns };
 }
-function truth(pl) { // revealed solver mix -> top action/freq
-  const t = (pl.post && (pl.post.explain || '')) + ' ' + (pl.post && pl.post.text || '');
-  const mx = mixOf(t); if (!mx.length) return null; mx.sort((a, b) => b.f - a.f); return { top: mx[0].a, f: mx[0].f, hard: (1 - mx[0].f / 100) >= 0.25 };
+function truth(pl) { // v2.1: the true value comes from the judgment prompt itself, never the whole page.
+  // calibration: data-truth attribute inside the container, else "The answer was N%" in the container's revealed text.
+  // drill/quiz: revealed solver mix inside the container (post.text / explain), top action/freq.
+  const post = pl.post; if (!post) return null;
+  const scope = (post.explain || '') + ' ' + (post.text || '');
+  const dt = post.truthAttr != null ? Number(post.truthAttr) : NaN;
+  const m = /answer\s+was\s+(\d+(?:\.\d+)?)\s*%/i.exec(scope);
+  const v = Number.isFinite(dt) ? dt : m ? Number(m[1]) : null;
+  if (pl.pre && pl.pre.type === 'calibration') { const all = [...scope.matchAll(/answer\s+was\s+(\d+(?:\.\d+)?)\s*%/gi)].map(x => Number(x[1])); return v == null ? null : { top: '', f: v, all, hard: true, calib: true }; }
+  const mx = mixOf(scope); if (!mx.length) return v == null ? null : { top: '', f: v, hard: true, calib: true };
+  mx.sort((a, b) => b.f - a.f); return { top: mx[0].a, f: mx[0].f, hard: (1 - mx[0].f / 100) >= 0.25 };
 }
 function scorePrompt(pl) {
   const r = {}; const { pre, hintProbe, post } = pl; const tr = truth(pl);
@@ -69,11 +77,11 @@ function scorePrompt(pl) {
   const inn = nums(pre.inputs); const shown = new Set(nums(outside)); const hit = inn.filter(n => shown.has(n));
   r.inputs = inn.length >= 2 && hit.length >= 2;
   const mtxt = pre.method + ' ' + pre.example; r.method = nums(mtxt).length >= 2 && ARITH.test(mtxt);
-  const trueTok = tr ? [String(tr.f), String(Math.round(tr.f)), tr.top.toLowerCase()] : [];
+  const trueTok = tr ? [String(tr.f), String(Math.round(tr.f)), tr.top.toLowerCase(), ...(tr.all || []).map(String)].filter(Boolean) : [];
   const ht = (hintProbe.after || '').toLowerCase();
   r.hint = !!hintProbe.toggle && hintProbe.hiddenBefore === true && words(hintProbe.after) >= 3 && !(tr && nums(ht).some(n => +n === tr.f || +n === Math.round(tr.f)));
   const ex = post ? post.explain : '';
-  r.explain = !!(post && pre.explain === '' && words(ex) >= 6 && tr && trueTok.some(t => ex.toLowerCase().includes(t)) && nums(pre.inputs).filter(n => nums(ex).includes(n)).length >= 2);
+  r.explain = !!(post && (pre.explain === '' || (pl.cont && post.explain !== pre.explain)) && words(ex) >= 6 && tr && trueTok.some(t => ex.toLowerCase().includes(t)) && nums(pre.inputs).filter(n => nums(ex).includes(n)).length >= 2);
   return r;
 }
 // Drive a drill session on a page: returns plays. Tries entry buttons until judgment prompts appear.
@@ -83,6 +91,7 @@ async function sessionFrom(p, maxItems, seenTypes) {
     let s = await snap(p);
     if (!s) { if (!(await advance(p))) miss++; else miss = 0; await p.waitForTimeout(200); s = await snap(p); if (!s) continue; }
     const pl = await playPrompt(p, n); if (!pl) { miss++; continue; }
+    pl.cont = plays.length > 0 && plays.at(-1).pre.q === pl.pre.q && plays.at(-1).pre.type === pl.pre.type; // same container, later question (a calibration prompt holds two reveals)
     plays.push(pl); seenTypes.add(pl.pre.type);
     // results wait for a tap: reward visible already; then advance
     pl.waitedForTap = !!(await snap(p)) || true;
@@ -99,13 +108,22 @@ async function findEntry(E, seed, want) { // replay a crawled path to a [data-ju
   }
   return null;
 }
-async function cashUntilCalib(E, seed) { // play cash hands via action buttons until an orbit review calibration prompt shows (<= 40 taps, <= 12 s)
-  const p = await E.page(seed); const b0 = await visBtns(p); const cash = b0.find(x => /cash|play|table/i.test(x.t)); if (cash) await clickNth(p, 'body', cash.i);
+// v2.1 fixture: one orbit-1 hand in the app's own history schema (js/history.js beginHand/logDecision/endHand shapes) holding a facing-bet call
+// decision, so the orbit review always has a pivotal spot once hero's BB hand closes the orbit. Everything else is played through the UI.
+export const ORBIT_SEED = { [HK]: JSON.stringify({ hands: [{ no: 1, orbit: 1, t: 1795823000000, pos: 'BTN', cards: [30, 27], n: 6, start: 1000, bb: 10,
+  decisions: [{ street: 'flop', pos: 'BTN', hand: 'Pair of Tens', chosen: 'c', grade: 'Good', gcls: 'g', mix: [{ t: 'c', label: 'Call', freq: 0.62 }, { t: 'f', label: 'Fold', freq: 0.38 }], pick: 'Call', quality: 'estimate', facing: true, board: [17, 2, 12], pot: 6, need: 0.25, eq: 0.33, values: null, leak: null,
+    facingText: 'Facing BB\'s bet to 2 BB · 2 BB to call into a 6 BB pot (their bet included)' }],
+  board: [17, 2, 12, 39, 9], net: -20, folded: false, showdown: true, shown: [{ name: 'kev_22', cards: [45, 34] }] }], orbit: 1 }) };
+async function cashUntilCalib(E, seed) { // play cash hands through the UI (fast speed) until the orbit review calibration prompt shows (<= 200 steps, <= 40 s)
+  const cfg = { 'poker-coach-v1': JSON.stringify({ settings: { speed: 'fast', seats: 6, orbitReview: true, calibration: true } }) };
+  const p = await E.page({ ...cfg, ...ORBIT_SEED, ...seed }); await p.click('#modeCash').catch(() => {});
   const t0 = Date.now();
-  for (let i = 0; i < 40 && Date.now() - t0 < 12000; i++) {
+  for (let i = 0; i < 200 && Date.now() - t0 < 40000; i++) {
     const s = await snap(p); if (s) return p;
-    const b = await visBtns(p); const a = b.find(x => /^(fold|check|call|continue|next|ok|deal|got it|close)/i.test(x.t));
-    if (a) await clickNth(p, 'body', a.i); else await p.waitForTimeout(150);
+    const st = await p.evaluate(() => ({ on: !!document.getElementById('panel')?.classList.contains('on'), acts: [...document.querySelectorAll('#actions button[data-a]')].map(b => b.dataset.a) }));
+    if (st.on) { await p.click('#panelClose').catch(() => {}); await p.waitForTimeout(100); const s2 = await snap(p); if (s2) return p; continue; }
+    const pick = ['call', 'check', 'next', 'fold'].find(x => st.acts.includes(x));
+    if (pick) await p.click(`#actions [data-a="${pick}"]`, { timeout: 2000 }).catch(() => {}); else await p.waitForTimeout(120);
   }
   await p._ctx.close(); return null;
 }
@@ -161,7 +179,7 @@ export async function run({ root = '.', seed, browser } = {}) {
     // reward
     const cells = { hardCorrect: [], wrong: [], easyCorrect: [] };
     for (const x of allPlays) {
-      if (!x.post || !x.label) continue; const tr = truth(x); if (!tr) continue;
+      if (!x.post || !x.label) continue; const tr = truth(x); if (!tr || tr.calib) continue;
       const correct = norm(x.label).includes(norm(tr.top)) || norm(tr.top).includes(norm(x.label));
       const got = (x.post.reward || 0) > (x.pre.reward || 0);
       (!correct ? cells.wrong : tr.hard ? cells.hardCorrect : cells.easyCorrect).push(got);

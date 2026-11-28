@@ -171,7 +171,7 @@ export async function run({ root, seed = 20261127, browser: extBrowser, onlyQuic
         const start = Date.now(); const hlWait = h === 0 ? (3 * n * 140 + 900 + 6000 + 2 * n * 140 + 900 + 2200) : 0;
         let heroTurns = 0, scanned = false, resultScanned = false, bad = new Map(), over = false;
         const hkey = `${tag}#${h}`;
-        while (Date.now() - start < 28000) {
+        while (Date.now() - start < hlWait + 26000) {
           if (await panelOn(p)) { await p.click('#panelClose').catch(() => {}); await sleep(100); }
           const c = await p.evaluate(CHIPS); acc.chips.samples++;
           const seenNow = new Set();
@@ -185,13 +185,13 @@ export async function run({ root, seed = 20261127, browser: extBrowser, onlyQuic
             if (Date.now() - start < hlWait) { await sleep(100); continue; }
             heroTurns++; const pick = a.includes('check') ? 'check' : a.includes('call') ? 'call' : 'fold';
             await p.click(`#actions [data-a="${pick}"]`, { timeout: 2500 }).catch(() => {});
-            if (heroTurns >= 3) { await sleep(900); const c2 = await p.evaluate(CHIPS); for (const v of c2.viol) bad.set(hkey + ':' + v.key + ':' + v.kind, { ...v, maxStreak: 9 }); break; }
+            if (heroTurns === 3) { await sleep(900); const c2 = await p.evaluate(CHIPS); for (const v of c2.viol) bad.set(hkey + ':' + v.key + ':' + v.kind, { ...v, maxStreak: 9 }); } // v2.1: no break, the hand is played on (check-down) until the result screen is sampled
           }
           await sleep(100);
         }
         for (const [id, b] of bad) if ((b.maxStreak || 1) >= 2) acc.chips.viol.set(id, b);
         if (h === 0) { const s = await p.evaluate(() => window.__hl.s); acc.hl.push({ tag, n, ...analyseRuns(s, n), samples: s.length, period: s.length > 1 ? Math.round((s[s.length - 1].t - s[0].t) / (s.length - 1)) : null }); }
-        if (!over && h === 0) notes['noResult_' + tag] = 'hand not finished in 28 s';
+        if (!over && h === 0) notes['noResult_' + tag] = 'hand not finished in time';
       } catch (e) { notes['error_' + tag + '_' + h] = String(e.message).slice(0, 120); }
       await p.context().close().catch(() => {});
     }
