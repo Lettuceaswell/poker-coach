@@ -37,8 +37,9 @@ button { font-family: inherit; color: inherit; background: none; border: 0; padd
 #seats { position: relative; flex: 1 1 auto; min-height: 230px; }
 .seat { position: absolute; width: 92px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; transition: opacity .3s; }
 .seat.folded { opacity: 1; }
-.seat.folded .ava-wrap { opacity: .45; }
-.seat.folded .nm, .seat.folded .stk { opacity: .62; }
+.seat.folded .ava-wrap { opacity: .5; }
+.seat.folded .pos { color: #fff; }
+.seat.folded .nm, .seat.folded .stk { opacity: .92; }
 .seat.out { opacity: .15; }
 .timer { width: 24px; height: 24px; border-radius: 50%; margin-bottom: 8px; visibility: hidden;
   background: conic-gradient(var(--go) calc(var(--p, 0) * 1turn), #1d1d1f 0); }
@@ -545,7 +546,7 @@ small { font-size: 13px !important; }
 
 /* note 5: the solver mix line is a wrapping row of whole entries (never cut mid-entry), the pot sits on the first row */
 .pot-row { position: relative; height: 112px; }
-.pot-row .pot { position: absolute; right: 0; top: 0; font-size: 28px; line-height: 22px; height: 24px; }
+.pot-row .pot { position: absolute; right: 0; top: 2px; font-size: 30px; line-height: 38px; }
 .coach-top { display: flex; align-items: center; gap: 6px; padding-right: 108px; height: 44px; }
 .coach-top .ct-txt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .coach-top .why-btn { flex: none; }
