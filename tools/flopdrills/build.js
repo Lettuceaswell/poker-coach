@@ -1,5 +1,7 @@
 // Solve common flops per preflop line into drill spots (same schema as data/postflop-drills.json).
 //   node tools/flopdrills/build.js --lines BTN-BB-SRP,CO-BB-SRP --flops 8 --workers 4 --secs 30 --out data/flopdrills
+//   node tools/flopdrills/build.js --skips-from data/flopdrills/night/night.log --secs 300 --tag night300 --workers 3 --out data/flopdrills/night
+//     (re-solve exactly the `skip <line> #<k>` jobs of a log, one job per distinct skip line; prints the job list)
 //   node tools/flopdrills/build.js --merge [--out data/flopdrills]   (merge solved spots into data/postflop-drills.json)
 // Ranges are the solved preflop strategy along each line (tools/flopdrills/lines.js). Never writes data/preflop-*.bin.
 // Flop solves are depth-limited (js/postflop/solver.js default); spots with exploitability > 3 are skipped.
@@ -44,7 +46,19 @@ if (!isMainThread) {
   const K = +arg('flops', 4), W = +arg('workers', 2), secs = +arg('secs', 30);
   for (const l of lines) if (!LINES[l]) { console.error('unknown line', l, 'known:', Object.keys(LINES).join(',')); process.exit(1); }
   fs.mkdirSync(OUT, { recursive: true });
-  const jobs = []; for (let k = 0; k < K; k++) lines.forEach((line, i) => jobs.push({ line, li: Object.keys(LINES).indexOf(line), k }));
+  const jobs = [];
+  const skipsFrom = arg('skips-from', null);
+  if (skipsFrom) {
+    const txt = fs.readFileSync(path.resolve(ROOT, skipsFrom), 'utf8');
+    const seen = new Set();
+    for (const m of txt.matchAll(/^skip (\S+) #(\d+)\b/gm)) {
+      const key = `${m[1]} #${m[2]}`; if (seen.has(key)) continue; seen.add(key);
+      if (!LINES[m[1]]) { console.error('unknown line in skips log', m[1]); process.exit(1); }
+      jobs.push({ line: m[1], li: Object.keys(LINES).indexOf(m[1]), k: +m[2] });
+    }
+    for (const j of jobs) console.log(`job ${j.line} #${j.k}`);
+    console.log(`${jobs.length} skip jobs from ${skipsFrom}`);
+  } else for (let k = 0; k < K; k++) lines.forEach((line, i) => jobs.push({ line, li: Object.keys(LINES).indexOf(line), k }));
   const buckets = Array.from({ length: W }, () => []); jobs.forEach((j, i) => buckets[i % W].push(j));
   const spots = [], stats = []; let live = 0;
   const outFile = path.join(OUT, `flops-${arg('tag', 'run')}.json`);

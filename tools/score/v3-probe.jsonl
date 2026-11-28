@@ -1,0 +1,8 @@
+{"spot":"BB|SB|0","flop":"10,24,28","shortIters":80,"longIters":273,"shortRatio":1.105,"longRatio":1.0523,"relDiffPct":5,"shortIPOOP":[1.054,0.954],"longIPOOP":[1.026,0.975]}
+{"spot":"BB|SB|0","flop":"10,32,46","shortIters":78,"longIters":292,"shortRatio":0.914,"longRatio":0.9222,"relDiffPct":-0.9,"shortIPOOP":[0.948,1.037],"longIPOOP":[0.951,1.032]}
+{"spot":"BB|SB|0","flop":"12,33,38","shortIters":61,"longIters":214,"shortRatio":0.9343,"longRatio":0.9841,"relDiffPct":-5.1,"shortIPOOP":[0.961,1.029],"longIPOOP":[0.988,1.004]}
+{"spot":"BB|SB|0","flop":"4,5,36","shortIters":71,"longIters":293,"shortRatio":1.1492,"longRatio":1.1423,"relDiffPct":0.6,"shortIPOOP":[1.08,0.94],"longIPOOP":[1.082,0.947]}
+{"spot":"BTN|BB|1","flop":"10,24,28","shortIters":120,"longIters":493,"shortRatio":1.4354,"longRatio":1.3341,"relDiffPct":7.6,"shortIPOOP":[1.158,0.807],"longIPOOP":[1.129,0.846]}
+{"spot":"BTN|BB|1","flop":"10,32,46","shortIters":115,"longIters":506,"shortRatio":1.5612,"longRatio":1.4842,"relDiffPct":5.2,"shortIPOOP":[1.185,0.759],"longIPOOP":[1.17,0.788]}
+{"spot":"BTN|BB|1","flop":"12,33,38","shortIters":101,"longIters":372,"shortRatio":1.8632,"longRatio":1.7944,"relDiffPct":3.8,"shortIPOOP":[1.237,0.664],"longIPOOP":[1.235,0.689]}
+{"spot":"BTN|BB|1","flop":"4,5,36","shortIters":127,"longIters":455,"shortRatio":1.3039,"longRatio":1.2803,"relDiffPct":1.8,"shortIPOOP":[1.109,0.851],"longIPOOP":[1.102,0.861]}

@@ -10,6 +10,9 @@
 //   --hu-minutes H  heads-up MCCFR minutes for the exploitability gauge (default 1)
 //   --tol X         stop early when round >= 2 and drift < X (default 0.004)
 //   --start FILE    starting solution (default data/preflop-<players>.bin, read only)
+//   --damp D        damp each round's table toward the previous round's: r = D*new + (1-D)*old per spot/agg, ip/oop,
+//                   class with n>0 in both (default 1 = no damping, the old behavior)
+//   --min-iters N   spots whose flops average fewer than N CFR iterations fall back to flat factors and are logged (default 0 = off)
 //   --depth full    full turn+river trees (depthLimited:false); default is flop+turn betting with river by equity
 // Outputs in --out: realization-rN.json, preflop-<n>-rN.bin/.vis/.log, gauges.jsonl, run-rN.log.
 // Never writes data/preflop-*.bin.
@@ -29,7 +32,7 @@ const tiny = flag('tiny');
 const P = {
   players: +opt('players', 6), rounds: +opt('rounds', tiny ? 2 : 3), flops: +opt('flops', tiny ? 3 : 40),
   minutes: +opt('minutes', tiny ? 0.5 : 120), workers: +opt('workers', tiny ? 4 : 8), spots: +opt('spots', tiny ? 4 : 14),
-  flopMs: +opt('flop-ms', tiny ? 4000 : 15000), huMin: +opt('hu-minutes', tiny ? 0.25 : 1), tol: +opt('tol', 0.004),
+  flopMs: +opt('flop-ms', tiny ? 4000 : 15000), huMin: +opt('hu-minutes', tiny ? 0.25 : 1), tol: +opt('tol', 0.004), damp: +opt('damp', 1), minIters: +opt('min-iters', 0),
   out: opt('out', 'data/calib'), depthFull: opt('depth', '') === 'full',
 };
 P.start = opt('start', `data/preflop-${P.players}.bin`);
@@ -75,7 +78,7 @@ async function solvePostflop(endings, flops, round) {
   return { results, errors, nTasks: tasks.length };
 }
 
-function buildTable(results, endings, round) {
+function buildTable(results, endings, round, prevTable) {
   const bySpot = {};
   for (const r of results) {
     const e = (bySpot[r.spot] ||= { ip: sums(), oop: sums(), flops: 0, iters: 0 });
@@ -96,6 +99,9 @@ function buildTable(results, endings, round) {
   const aggS = {};
   const fq = Object.fromEntries(endings.map(e => [e.key, e]));
   for (const [key, e] of Object.entries(bySpot)) {
+    const mi = Math.round(e.iters / e.flops);
+    say(`round ${round} spot ${key} meanIters ${mi} over ${e.flops} flops`);
+    if (mi < P.minIters) { say(`round ${round} spot ${key} dropped: meanIters ${mi} < --min-iters ${P.minIters}, flat factors`); continue; }
     table.spots[key] = { ip: fin(e.ip), oop: fin(e.oop), flops: e.flops, freq: fq[key].freq, pot: fq[key].pot, meanIters: Math.round(e.iters / e.flops) };
     const lvl = key.split('|')[2];
     const a = (aggS[lvl] ||= { ip: sums(), oop: sums() });
@@ -107,6 +113,11 @@ function buildTable(results, endings, round) {
     }
   }
   for (const [lvl, a] of Object.entries(aggS)) table.agg[lvl] = { ip: fin(a.ip), oop: fin(a.oop) };
+  if (P.damp < 1 && prevTable) {
+    const mix = (nw, old) => { for (const role of ['ip', 'oop']) for (let c = 0; c < 169; c++) if (nw[role].n[c] > 0 && old[role].n[c] > 0) nw[role].r[c] = +(P.damp * nw[role].r[c] + (1 - P.damp) * old[role].r[c]).toFixed(4); };
+    for (const grp of ['spots', 'agg']) for (const [k, v] of Object.entries(table[grp])) if (prevTable[grp][k]) mix(v, prevTable[grp][k]);
+    table.damp = P.damp;
+  }
   return table;
 }
 
@@ -136,7 +147,7 @@ let prev = loadBin(P.players, P.start);
   const l = gaugeLine(0, prev, null, { huExploitMbb: hu0, note: 'baseline: starting solution, flat factors', source: P.start });
   fs.appendFileSync(`${P.out}/gauges.jsonl`, l + '\n'); say('gauge', l);
 }
-let first = null, spotKeys = null;
+let first = null, spotKeys = null, prevTable = null;
 for (let round = 1; round <= P.rounds; round++) {
   const tr = Date.now();
   const all = enumerateEndings(prev).filter(e => e.stack >= 0.5 * e.pot && e.pot < 80);
@@ -155,7 +166,8 @@ for (let round = 1; round <= P.rounds; round++) {
   const { results, errors, nTasks } = await solvePostflop(endings, flops, round);
   const postflopMin = (Date.now() - tp) / 60000;
   if (!results.length) throw new Error('no postflop result');
-  const table = buildTable(results, endings, round);
+  const table = buildTable(results, endings, round, prevTable);
+  prevTable = table;
   const tfile = `${P.out}/realization-r${round}.json`;
   fs.writeFileSync(tfile, JSON.stringify(table));
   say(`wrote ${tfile}; postflop ${nTasks} solves (${errors} errors) in ${postflopMin.toFixed(2)} min at ${P.workers} workers`);
