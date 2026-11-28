@@ -9,7 +9,7 @@ import * as pf from './postflop-coach.js';
 import * as H from './history.js';
 import { preflopDetail, postflopDetail, villainView, storedPreflopGrid, nodeMixes } from './explain.js';
 import { gridHTML } from './grid.js';
-import { coachBlocks, explainText, isExpert, spotNums } from './calib-coach.js';
+import { coachBlocks, explainText, isExpert, spotNums, renderVerdict } from './calib-coach.js';
 import { openDrills } from './drills.js';
 import { installPostflopDrills } from './postflop-drills.js';
 import { openLibrary, openExport } from './library.js';
@@ -1163,7 +1163,7 @@ function handRows(hands) {
   }).join('');
 }
 
-// Orbit review: one pivotal spot, two calibration questions, the verdict, then the orbit's hands
+// Orbit review: the orbit's hands (strongest first), then one pivotal spot with two calibration questions and the verdict
 // Pick the orbit's most instructive call decision: big pot and a close price-vs-equity gap.
 const spotScore = (d) => (d.pot || 1) * (0.3 + (d.eq != null ? 1 - Math.min(1, Math.abs(d.eq - d.need) / 0.25) : 0.4));
 function pivotalSpot(hands) {
@@ -1226,9 +1226,7 @@ async function openOrbitReview(hands) {
     if (!n || (qs.length > 1 && !e)) return '';
     const grade = `The coach graded your ${chosen(d)} <span class="grade ${d.gcls}">${d.grade}</span>.`;
     if (!e) return `<p class="verdict">${grade}</p>`;
-    const gap = e.truth - n.truth;
-    const side = gap >= 0 ? `calling had the edge by ${gap} points` : `folding had the edge by ${-gap} points`;
-    return `<p class="verdict">You needed ${n.truth}% and had ${e.truth}%: on price alone ${side}${d.street === 'preflop' ? ' (position after the flop shifts this a little)' : ''}. Rule: call when your win share beats the price, ${e.truth}% vs ${n.truth}%. ${grade}</p>`;
+    return renderVerdict(d, n.truth, e.truth, grade);
   }
   function calInner() {
     const sp = spots[cur], d = sp.d, qs = qsFor(sp);
@@ -1252,8 +1250,9 @@ async function openOrbitReview(hands) {
       <button class="btn wide spot-replay" data-hand="${sp.h.no}">Replay this hand</button>
       ${spots.length > 1 ? `<button class="btn wide next-spot">Next spot · ${(cur + 1) % spots.length + 1} of ${spots.length}</button>` : ''}`;
   }
-  const html = `${d0 ? `<section class="cal-sec">${calInner()}</section>` : ''}
-    <section><h4>Orbit ${orbit}, strongest hand first</h4><div class="hrows">${handRows(ranked)}</div></section>`;
+  // the orbit's hands first (strongest on top), the calibration questions below (scroll)
+  const html = `<section><h4>Orbit ${orbit}, strongest hand first</h4><div class="hrows">${handRows(ranked)}</div></section>
+    ${d0 ? `<section class="cal-sec">${calInner()}</section>` : ''}`;
   const done = openPanel(`Orbit ${orbit}`, html, `<span class="${net >= 0 ? 'up' : 'down'}">${bbTxt(net)} BB</span>`);
   const view = panelView();
   function wire() {
