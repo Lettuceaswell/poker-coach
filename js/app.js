@@ -16,6 +16,7 @@ import { openLibrary, openExport } from './library.js';
 import { openReview } from './review.js';
 import { openReport } from './report.js';
 import { progressHTML, progressMini } from './progress.js';
+import { openAnalysis, rankInSet, ownRange, analysisState } from './analysis.js';
 
 const SB = 5, BB = 10, START = 100 * BB;
 const SPEED = { slow: [1200, 2200], normal: [600, 1300], fast: [220, 480] };
@@ -113,13 +114,14 @@ function applySettings() {
   document.body.classList.remove('felt-green', 'felt-navy');
   if (settings.felt !== 'black') document.body.classList.add('felt-' + settings.felt);
   $('unitBtn').textContent = settings.unit === 'bb' ? 'BB' : 'Chips';
-  $('blinds').textContent = `No-Limit Hold'em · ${SB}/${BB}`;
+  $('blinds').textContent = `NLHE ${SB}/${BB}`; // short, so the Analysis button fits beside it
   document.querySelectorAll('.seg').forEach(seg => {
     seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(settings[seg.dataset.key]) === b.dataset.v));
   });
   const net = session.net / BB;
   const acc = session.pfN ? ` · Preflop ${Math.round(100 * session.pfGood / session.pfN)}% (${session.pfN})` : '';
-  $('sessionStats').textContent = `Hands ${session.hands} · Net ${net >= 0 ? '+' : ''}${net.toFixed(1)} BB${acc}`;
+  const as = H.assistedCount();
+  $('sessionStats').textContent = `Hands ${session.hands} · Net ${net >= 0 ? '+' : ''}${net.toFixed(1)} BB${acc} · Assisted ${as.assisted} of ${as.all} decisions (not counted)`;
 }
 
 function winnersSet() {
@@ -698,6 +700,7 @@ async function loop() {
     await gate();
     game.startHand();
     H.beginHand(game);
+    pendingAssist = false;
     pre = null;
     let street = game.street;
     acting = -1;
@@ -719,6 +722,8 @@ async function loop() {
         if (pre !== 'checkfold' || !L.canCheck) pre = null;
         newRoll();
         cs = readSpot();
+        assisted = !auto && (settings.coach === 'always' || pendingAssist);
+        pendingAssist = false;
         if (auto) {
           await sleep(200);
           grade(auto);
@@ -792,6 +797,12 @@ async function loadStrategy(n) {
 
 let cs = null;     // coach reading for the current hero decision
 let graded = null;   // { hand, html } shown until the next decision
+let assisted = false; // the solver's pick was visible before he acted on this decision (coach 'always', Why?/Coach, Analysis reveal)
+let pendingAssist = false; // solver view opened mid-hand before his turn: counts for his next decision
+const markAssisted = () => {
+  if (heroTurn && cs) assisted = true;
+  else if (!heroTurn && !game.handOver && !hero().folded) pendingAssist = true;
+};
 
 const RARE_VIS = 4 * 16; // log2(visits)*4 below this = thin data (< ~65k visits)
 function readSpot() {
@@ -917,7 +928,7 @@ function grade(type) {
   const mine = { freq: f };
   const top = topT === t ? mine : null;
   const [word, cls] = f >= 0.5 || mine === top ? ['Best', 'g'] : f >= 0.15 ? ['Good', 'g'] : f >= 0.03 ? ['Rare', 'y'] : ['Mistake', 'r'];
-  if (sp.quality === 'exact' && !sp.rare) {
+  if (sp.quality === 'exact' && !sp.rare && !assisted) {
     session.pfN++;
     if (cls === 'g') session.pfGood++;
   }
@@ -925,7 +936,7 @@ function grade(type) {
     .map(m => `${m.label.replace(/ [\d.,]+$/, '')} ${Math.round(m.freq * 100)}%`).join(' · ');
   graded = {
     hand: game.handNo,
-    html: `<span class="coach"><span class="grade ${cls}">${word}</span> ${sp.pos} · ${sp.hand}${tag(sp)}<br><span class="dim">${solver}</span></span>`,
+    html: `<span class="coach"><span class="grade ${cls}">${word}</span> ${sp.pos} · ${sp.hand}${tag(sp)}<br><span class="dim">${solver}${assisted ? ' · Assisted' : ''}</span></span>`,
   };
   logHeroDecision(sp, t, word, cls);
 }
@@ -951,6 +962,7 @@ function logHeroDecision(sp, t, word, gcls) {
     facing: L.toCall > 0, board: game.board.slice(), pot: game.totalPot / BB,
     need: L.toCall > 0 ? L.toCall / (game.totalPot + L.toCall) : null,
   };
+  if (assisted) rec.assisted = true;
   if (L.toCall > 0) {
     // who bet what, so a later review can describe the spot
     const ag = [...game.history].reverse().find(h => h.street === game.street && h.type === 'raise' && h.seat !== heroI);
@@ -1082,6 +1094,7 @@ const factList = (facts) => `<ul class="facts">${facts.map(f => `<li>${f}</li>`)
 // The Coach panel for the current decision
 async function openCoachPanel() {
   if (!cs || !heroTurn) return;
+  markAssisted(); // the panel shows the solver's pick before he acts
   const heroI = game.players.findIndex(p => p.isHero);
   const n = game.players.filter(p => !p.out).length;
   const S = strategies[n];
@@ -1150,6 +1163,7 @@ function postflopPanelHTML(d, solved, waiting) {
 }
 
 async function openVillain(seat) {
+  markAssisted(); // opponent ranges come from the solver
   const heroI = game.players.findIndex(p => p.isHero);
   const n = game.players.filter(p => !p.out).length;
   const S = strategies[n];
@@ -1183,7 +1197,7 @@ function openReplay(h) {
     return `<div class="rstep" data-k="${k}">
       <div class="rstep-head"><span class="grade ${d.gcls}">${d.grade}</span><b>${d.street[0].toUpperCase() + d.street.slice(1)}</b>
         <span class="dim">${d.board && d.board.length ? cardsTxt(d.board) : ''}</span>
-        <span class="you">You: ${d.chosen === 'f' ? 'Fold' : d.chosen === 'r' ? 'Bet/Raise' : (d.facing ? 'Call' : 'Check')}</span></div>
+        ${d.assisted ? '<span class="tagA">Assisted</span>' : ''}<span class="you">You: ${d.chosen === 'f' ? 'Fold' : d.chosen === 'r' ? 'Bet/Raise' : (d.facing ? 'Call' : 'Check')}</span></div>
       <div class="rstep-body">${mixRows(d.mix, d.pick)}
         ${d.need != null ? `<p class="dim small">Price ${pctTxt(d.need)}${d.eq != null ? ` · your equity ${pctTxt(d.eq)}` : ''}</p>` : ''}
         ${d.facts ? factList(d.facts) : ''}
@@ -1207,7 +1221,7 @@ function handRows(hands) {
   return hands.map(h => {
     const worst = h.decisions.some(d => d.gcls === 'r') ? 'r' : h.decisions.some(d => d.gcls === 'y') ? 'y' : h.decisions.length ? 'g' : '';
     return `<button class="hrow" data-hand="${h.no}"><span class="rp-cards">${cardsTxt(h.cards)}</span><span class="hpos">${h.pos}</span>
-      <span class="dot ${worst}"></span><span class="rp-net ${h.net >= 0 ? 'up' : 'down'}">${bbTxt(h.net / h.bb)}</span></button>`;
+      ${h.decisions.some(d => d.assisted) ? '<span class="tagA">Assisted</span>' : ''}<span class="dot ${worst}"></span><span class="rp-net ${h.net >= 0 ? 'up' : 'down'}">${bbTxt(h.net / h.bb)}</span></button>`;
   }).join('');
 }
 
@@ -1400,7 +1414,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // test hook
-window.__poker = { forceCoach: (mix) => { if (!heroTurn) return false; const base = cs && !cs.off && !cs.loading ? cs : { pos: 'BB', hand: 'JTo' }; cs = withRoll({ ...base, mix: mix.map(m => ({ ...m })), live: null, solved: true }); $('status').innerHTML = coachHTML(); return true; }, game: () => game, settings, play, coach: () => cs };
+window.__poker = { forceCoach: (mix) => { if (!heroTurn) return false; const base = cs && !cs.off && !cs.loading ? cs : { pos: 'BB', hand: 'JTo' }; cs = withRoll({ ...base, mix: mix.map(m => ({ ...m })), live: null, solved: true }); $('status').innerHTML = coachHTML(); return true; }, game: () => game, render, settings, play, coach: () => cs, assisted: () => assisted, markAssisted, act: (t, to) => heroAct(t, to), analysis: { rankInSet, ownRange, state: analysisState } };
 
 // ---------- feature screens: spot library, hand review, report, export (lane b2) ----------
 const featCtx = () => ({ strategies, loadStrategy, seats: settings.seats, openPanel, panelView, H });
@@ -1409,3 +1423,17 @@ $('menuLab').addEventListener('click', () => openLab(featCtx()));
 $('menuReview').addEventListener('click', () => openReview(featCtx()));
 $('menuReport').addEventListener('click', () => openReport(featCtx()));
 $('menuExport').addEventListener('click', () => openExport(featCtx()));
+
+// ---------- Analysis: one button that gathers the analysis tools (playtest note 7) ----------
+const analysisCtx = () => ({
+  game: () => game, settings, session, H, strategies, loadStrategy, bb: BB, openPanel, panelView,
+  heroTurn: () => heroTurn, cs: () => cs, markAssisted, sitOf: preflopSit, handRows,
+  tools: {
+    coach: () => { if (heroTurn && cs) openCoachPanel(); }, hands: openHands, leaks: openLeaks,
+    progress: () => openPanel('Progress', progressHTML()),
+    library: () => openLibrary(featCtx()), lab: () => openLab(featCtx()), review: () => openReview(featCtx()),
+    report: () => openReport(featCtx()), export: () => openExport(featCtx()),
+  },
+});
+$('menuAnalysis').addEventListener('click', () => openAnalysis(analysisCtx()));
+$('analysisBtn').addEventListener('click', () => openAnalysis(analysisCtx()));

@@ -4,7 +4,7 @@ import { decisionCost, storedDecisions, demoDecisions } from './review.js';
 
 export async function openReport(ctx) {
   const { strategies, loadStrategy, openPanel, H } = ctx;
-  let items = storedDecisions(H), sample = false;
+  let items = storedDecisions(H, { own: true }), sample = false;
   if (!items.length) {
     const n = ctx.seats || 6;
     if (!strategies[n] || strategies[n] === 'loading') { await loadStrategy(n); for (let i = 0; i < 80 && strategies[n] === 'loading'; i++) await new Promise(r => setTimeout(r, 100)); }

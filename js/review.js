@@ -20,9 +20,9 @@ export function decisionCost(rec) {
   return { cost: Math.round(Math.max(0, by[top] - (by[rec.chosen] || 0)) * 10) / 10, top, approx: true };
 }
 
-export function storedDecisions(H) {
+export function storedDecisions(H, { own = false } = {}) {
   const out = [];
-  for (const h of [...H.history.hands, ...(H.history.live && !H.history.hands.some(x => x.no === H.history.live.no) ? [H.history.live] : [])]) for (const d of h.decisions || []) if (d.mix && d.mix.length) out.push({ hand: h, d });
+  for (const h of [...H.history.hands, ...(H.history.live && !H.history.hands.some(x => x.no === H.history.live.no) ? [H.history.live] : [])]) for (const d of h.decisions || []) if (d.mix && d.mix.length && !(own && d.assisted)) out.push({ hand: h, d });
   return out;
 }
 

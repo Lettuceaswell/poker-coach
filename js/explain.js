@@ -138,7 +138,7 @@ export function boardTags(board) {
   return tags;
 }
 
-function draws(hole, board) {
+export function draws(hole, board) {
   const out = [];
   if (board.length >= 5) return out;
   const all = [...hole, ...board];

@@ -27,7 +27,7 @@ export function logDecision(rec) {
   if (!cur) return;
   cur.decisions.push(rec);
   db.live = cur; // in-progress hand, so review/report see it before the hand ends
-  addLeak(rec.leak);
+  if (!rec.assisted) addLeak(rec.leak); // assisted decisions (solver pick shown before he acted) stay out of his record
   persist();
 }
 
@@ -73,6 +73,7 @@ export const handName = (cards) => className(handClass(cards));
 // ---------- leaks ----------
 // Classify a decision against the solver mix: too tight / loose / passive / aggressive
 export function leakOf(rec) {
+  if (rec.assisted) return null;
   if (!rec.mix || !rec.mix.length || !(rec.quality === 'exact' || rec.quality === 'solved')) return null;
   const by = {}; rec.mix.forEach(m => { by[m.t] = (by[m.t] || 0) + m.freq; });
   const f = by[rec.chosen] ?? 0;
@@ -92,6 +93,14 @@ export function leakOf(rec) {
     if (mine.length) ev = Math.max(0, best - Math.max(...mine));
   }
   return { key: `${where}|${dir}`, label: `${where}: ${dir}`, cost, ev, play };
+}
+
+// assisted decisions: logged with assisted:true, kept in hand history, excluded from every stat
+export const isAssisted = (d) => !!(d && d.assisted);
+export function assistedCount() {
+  let n = 0, all = 0;
+  for (const h of [...db.hands, ...(db.live && !db.hands.some(x => x.no === db.live.no) ? [db.live] : [])]) for (const d of h.decisions || []) { all++; if (d.assisted) n++; }
+  return { assisted: n, own: all - n, all };
 }
 
 export function topLeaks(n = 5) {

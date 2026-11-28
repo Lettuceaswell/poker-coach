@@ -15,6 +15,7 @@ function snap() {
   for (const h of db.hands) {
     if (h.t < t0) continue;
     for (const r of h.decisions || []) {
+      if (r.assisted) continue; // solver pick was visible before he acted
       if (!r.mix || !r.mix.length || !(r.quality === 'exact' || r.quality === 'solved')) continue;
       dec++; if (!r.leak) ok++; else bb += r.leak.ev || 0;
     }
