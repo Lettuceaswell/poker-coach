@@ -3,7 +3,15 @@
 // (it is not exported there), so there is one definition. Usage:
 //   node tools/legib-chips.js [--hands 8] [--root .] [--json out.json] [--shots dir]
 import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url';
-import { startServer, launch, newPage, sleep, VIEWPORTS } from './score/v2/lib.js';
+import { startServer, launch, sleep, seedScript, settingsScript } from './score/v2/lib.js';
+// run 3 (VAL-PT-002): his phone, 430x932 at deviceScaleFactor 3, joins the two frozen sizes. The frozen CHIPS check already treats board cards
+// AND empty board slots as obstacles; tools/pt-table-check.js adds the opponent card backs, per-street chip counts and the mix-line checks.
+const VIEWPORTS = [{ width: 430, height: 932, dsf: 3 }, { width: 390, height: 844, dsf: 1 }, { width: 360, height: 740, dsf: 1 }];
+async function newPage(browser, origin, o) {
+  const ctx = await browser.newContext({ viewport: { width: o.viewport.width, height: o.viewport.height }, deviceScaleFactor: o.viewport.dsf || 1, isMobile: true, hasTouch: true });
+  await ctx.addInitScript(seedScript(o.seed)); await ctx.addInitScript(settingsScript(o.settings));
+  const p = await ctx.newPage(); p.setDefaultTimeout(o.timeout || 8000); await p.goto(origin + '/'); await p.waitForSelector('#modeCash'); return p;
+}
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(here, 'score/v2/legibility.js'), 'utf8');
 const a = src.indexOf('const CHIPS = () => {'), b = src.indexOf('\n};\n', a);
@@ -18,7 +26,7 @@ const res = []; const MINSTREAK = +arg('--min-streak', 2); const panelOn = (p) =
 async function combo(n, vp) {
   const r = { combo: `${n}p@${vp.width}x${vp.height}`, hands: 0, chips: 0, polls: 0, raw: 0, violations: [] };
   for (let h = 0; h < HANDS; h++) {
-    const p = await newPage(browser, srv.origin, { seed: seed + n * 1000 + vp.width + h * 17 + 3, viewport: vp, settings: { seats: n, speed: 'fast', coach: 'off', orbitReview: false, calibration: false }, timeout: 6000 });
+    const p = await newPage(browser, srv.origin, { seed: seed + n * 1000 + vp.width + h * 17 + 3, viewport: vp, settings: { seats: n, speed: 'fast', coach: 'always', orbitReview: false, calibration: false }, timeout: 6000 });
     try {
       await p.click('#modeCash'); const t0 = Date.now(); let shot = false; const streak = new Map(); let resultPolls = 0;
       while (Date.now() - t0 < 28000) {
