@@ -55,7 +55,7 @@ export function skillEstimate(H, type) {
 }
 // target difficulty (1 - solver top frequency): 0 = clear hands, ~0.45 = hands where the solver mixes
 export function targetDifficulty(skill) {
-  if (skill == null) return 0;
+  if (skill == null) return 0.15; // no history: mostly clear spots with a few close calls
   return 0.45 * Math.max(0, Math.min(1, (skill - 0.55) / 0.38));
 }
 // weight of an item with difficulty dif for this target (kernel; every item keeps a small chance)
