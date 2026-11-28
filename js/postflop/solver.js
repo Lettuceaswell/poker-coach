@@ -134,6 +134,7 @@ class Node {
     this.cardRep = null; // CHANCE: card -> [rep slot, perm index]
     this.weight = 0; // CHANCE: 1 / (deck - 4)
     this.mult = 1; // count-only builds: copies this node stands for
+    this.lock = null; // ACT: node-locked action probabilities (same for every combo), or null
     this.lastT = -1; // ACT: last iteration whose regret update touched it
     this.flopRunout = false; // EQ: all-in on the flop (turn + river to come)
     this.sampled = false; // CHANCE: first chance level, eligible for sampling
@@ -257,6 +258,17 @@ function setup(input, countOnly) {
     stats: null, root: null, maxDepth: 0, maxA: 2,
     leafWalk: false, // evaluation passes walk sampled-leaf plans exactly (actionValues)
   };
+  // Node-lock: input.locks = [{ player, street: 'flop'|'turn'|'river', bet: 0..1 }].
+  // At that player's first decision of the street that offers check/bet, every
+  // combo plays Bet with total probability `bet` (split evenly over the bet
+  // sizes) and Check otherwise. Locked nodes keep that strategy; their regrets
+  // are never updated and the other player best-responds to it.
+  ctx.locks = (input.locks || []).map(l => {
+    const street = { flop: 3, turn: 4, river: 5 }[l.street];
+    const bet = +l.bet;
+    if (![0, 1].includes(l.player) || !street || !(bet >= 0 && bet <= 1)) throw new Error('bad lock');
+    return { player: l.player, street, bet };
+  });
   ctx.root = buildStreet(ctx, board, pot, stack, bets, toAct, nBets, checks, 0);
   // Chance sampling setup (first chance level; see evalChance).
   ctx.logAlpha = [];
@@ -331,6 +343,13 @@ function buildStreet(ctx, board, P, stack, puts, toAct, nBets, checks, depth) {
   node.actions = genActions(ctx, P, stack, puts, toAct, nBets);
   ctx.maxA = Math.max(ctx.maxA, node.actions.length);
   ctx.maxDepth = Math.max(ctx.maxDepth, depth + 1);
+  if (node.actions[0].type === 'check') {
+    const lk = ctx.locks && ctx.locks.find(l => l.player === toAct && l.street === board.length);
+    if (lk) {
+      const nb = node.actions.length - 1;
+      node.lock = node.actions.map((a, i) => (i === 0 ? 1 - (nb ? lk.bet : 0) : lk.bet / nb));
+    }
+  }
   const me = toAct, op = 1 - me;
   node.kids = node.actions.map(a => {
     switch (a.type) {
@@ -576,6 +595,10 @@ function allocate(ctx) {
     if (node.t === ACT) {
       const len = node.actions.length * ctx.n[node.player];
       node.reg = take(len); node.sum = take(len);
+      if (node.lock) { // average strategy == the lock for every combo
+        const n = ctx.n[node.player];
+        for (let a = 0; a < node.lock.length; a++) node.sum.fill(node.lock[a], a * n, (a + 1) * n);
+      }
     }
     if (node.kids) for (const k of node.kids) walk(k);
   };
@@ -670,7 +693,7 @@ function evalAct(ctx, node, p, reach, out, depth, mode) {
       Vs[a].fill(0, 0, n);
       traverse(ctx, kids[a], p, reach, Vs[a], depth + 1, mode);
     }
-    if (mode === BEST) {
+    if (mode === BEST && !node.lock) {
       for (let h = 0; h < n; h++) {
         let m = Vs[0][h];
         for (let a = 1; a < A; a++) if (Vs[a][h] > m) m = Vs[a][h];
@@ -705,6 +728,17 @@ function evalActCfr(ctx, node, p, reach, out, depth) {
   if (node.player === p) {
     const n = ctx.n[p];
     const Vs = ctx.poolV[depth];
+    if (node.lock) { // fixed strategy: value only, no regret update
+      for (let a = 0; a < A; a++) {
+        const la = node.lock[a];
+        if (!(la > 0)) continue;
+        Vs[a].fill(0, 0, n);
+        traverse(ctx, kids[a], p, reach, Vs[a], depth + 1, CFR);
+        const V = Vs[a];
+        for (let h = 0; h < n; h++) out[h] += la * V[h];
+      }
+      return;
+    }
     regretTotals(reg, A, n, INV, FLAG);
     for (let a = 0; a < A; a++) {
       Vs[a].fill(0, 0, n);
@@ -747,8 +781,17 @@ function evalActCfr(ctx, node, p, reach, out, depth) {
   // stays correct for nodes that chance sampling skips.
   const o = 1 - p, nO = ctx.n[o];
   const sum = node.sum, wT = ctx.stratWeight;
-  regretTotals(reg, A, nO, INV, FLAG);
   const R = ctx.poolR[depth];
+  if (node.lock) { // opponent propagates reach x lock; strategy sums stay at the lock
+    for (let a = 0; a < A; a++) {
+      const la = node.lock[a];
+      if (!(la > 0)) continue;
+      for (let j = 0; j < nO; j++) R[j] = reach[j] * la;
+      traverse(ctx, kids[a], p, R, out, depth + 1, CFR);
+    }
+    return;
+  }
+  regretTotals(reg, A, nO, INV, FLAG);
   for (let a = 0; a < A; a++) {
     const base = a * nO;
     let any = 0;

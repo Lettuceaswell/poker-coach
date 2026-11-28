@@ -1,6 +1,7 @@
 // Lab core: range text -> combo weights, fixed-iteration root solve (deterministic), mix formatting.
 // Runs the existing postflop solver (js/postflop/solver.js); no constants stand in for results.
 import { createSolver, comboIndex } from './postflop/solver.js';
+import { createSolver3 } from './postflop/solver3.js';
 
 const RK = '23456789TJQKA';
 export function parseRange(text, dead = []) {
@@ -62,3 +63,69 @@ export function roundMix(pairs) {
   return fl.map(([n, v]) => [n, v]);
 }
 export const mixLine = (label, mix) => `${label}: ${mix.map(([n, v]) => `${n} ${v}%`).join('  ')}`;
+
+// ---- per-street node-lock report (turn + river spot) -------------------------------------------
+// Range- and reach-weighted action mix of the player to act at `path`.
+function nodeMix(solver, path) {
+  const info = solver.nodeInfo(path);
+  if (info.type !== 'action') return null;
+  const actions = solver.actionsAt(path), pl = info.player;
+  const w = solver.rangeAt(path, pl);
+  const tot = new Float64Array(actions.length); let ws = 0;
+  for (let h = 0; h < 1326; h++) {
+    if (!(w[h] > 0)) continue;
+    const p = solver.strategyAt(path, h); if (!p) continue;
+    for (let a = 0; a < actions.length; a++) tot[a] += w[h] * p[a];
+    ws += w[h];
+  }
+  if (!(ws > 0)) return null;
+  const by = new Map();
+  actions.forEach((a, i) => { const n = NAME[a.type] || a.type; by.set(n, (by.get(n) || 0) + tot[i] / ws); });
+  return roundMix([...by]);
+}
+const firstBet = (solver, path) => solver.actionsAt(path).findIndex(a => a.type === 'bet' || a.type === 'allin');
+// locks: [{ player, street: 'turn'|'river', bet }] ; board has 4 cards (turn spot). Fixed iterations: deterministic.
+export function lockReport(input, locks, iters = 400) {
+  const solver = createSolver({ ...input, locks });
+  solver.step(iters);
+  const out = { iters, turn: {}, river: {} };
+  out.turn.oop = nodeMix(solver, []);
+  const tb = firstBet(solver, []);
+  if (tb >= 0) out.turn.ipVsBet = nodeMix(solver, [tb]);
+  const tc = solver.actionsAt([]).findIndex(a => a.type === 'check');
+  out.turn.ipAfterCheck = nodeMix(solver, [tc]);
+  // river: after check-check on the turn, the first river card that can be dealt
+  const cc = solver.actionsAt([tc]).findIndex(a => a.type === 'check');
+  if (cc >= 0) {
+    const info = solver.nodeInfo([tc, cc]);
+    const card = (info.cards || [])[0];
+    if (card !== undefined) {
+      const base = [tc, cc, card];
+      out.river.card = card;
+      out.river.oop = nodeMix(solver, base);
+      const rb = firstBet(solver, base);
+      if (rb >= 0) out.river.ipVsBet = nodeMix(solver, [...base, rb]);
+      const rc = solver.actionsAt(base).findIndex(a => a.type === 'check');
+      out.river.ipAfterCheck = nodeMix(solver, [...base, rc]);
+    }
+  }
+  return out;
+}
+
+// ---- three-way river solve (solver3): fixed iterations -> deterministic ---------------------------
+// Returns each seat's first-decision mix (seat 0 acts first, seat 1 after a check, seat 2 after two checks),
+// and the best-response gain per player in % of the pot (how far from stable the average strategies are).
+export function threeWaySolve(input, iters, onProgress) {
+  const s = createSolver3(input);
+  const chunk = 10;
+  for (let done = 0; done < iters;) { const k = Math.min(chunk, iters - done); s.step(k); done += k; if (onProgress) onProgress(done, iters); }
+  const seats = [0, 1, 2].map(p => {
+    const m = s.rootMix(p);
+    if (!m) return null;
+    const by = new Map();
+    for (const a of m) { const n = NAME[a.type] || a.type; by.set(n, (by.get(n) || 0) + a.freq); }
+    return roundMix([...by]);
+  });
+  const g = s.bestResponseGain();
+  return { iters, seats, gain: g.gain, combos: [0, 1, 2].map(p => s.combos(p).length), nodes: s.nodeCount };
+}

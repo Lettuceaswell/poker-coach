@@ -8,7 +8,7 @@
 //  6. lock-two best-response gain table (VAL-3WAY-002): --table.
 import { chen } from '../js/cards.js';
 import { createSolver, comboCards, comboIndex, NUM_COMBOS } from '../js/postflop/solver.js';
-import { createSolver3 } from '../js/postflop/solver3.js';
+import { createSolver3, THREEWAY_LAB_ITERS, THREEWAY_LIVE_ITERS } from '../js/postflop/solver3.js';
 
 const QUICK = process.argv.includes('--quick');
 let failures = 0;
@@ -174,9 +174,12 @@ if (process.argv.includes('--table') || process.argv.includes('--hu-br')) {
   check(Math.abs(br3 - expl) < 0.1, `best response matches heads-up exploitability on the degenerate spot: 3-way routine ${br3.toFixed(3)}% vs solver.js ${expl.toFixed(3)}% pot (diff ${Math.abs(br3 - expl).toFixed(3)})`);
 }
 if (process.argv.includes('--table')) {
-  const budgets = QUICK ? [10, 40, 160] : [25, 100, 400];
+  // 3 generic budgets plus the Lab budget (js/lab.js uses THREEWAY_LAB_ITERS) and the live phone budget (THREEWAY_LIVE_ITERS)
+  const tagged = new Map((QUICK ? [10, 40, 160] : [25, 100, 400]).map(b => [b, []]));
+  for (const [b, tag] of [[THREEWAY_LAB_ITERS, 'Lab'], [THREEWAY_LIVE_ITERS, 'phone']]) tagged.set(b, [...(tagged.get(b) || []), tag]);
+  const budgets = [...tagged.keys()].sort((x, y) => x - y);
   console.log('\nlock-two best-response gain, % of pot (BR of one player vs the other two fixed at their average)');
-  console.log('spot                              budget  iters  wall s   ms/it   gain s0   gain s1   gain s2');
+  console.log('spot                              budget  iters  wall s   ms/it   gain s0   gain s1   gain s2  (gain = % pot per player)');
   const all = [];
   for (const spot of SPOTS) {
     const s = mk(spot);
@@ -189,7 +192,7 @@ if (process.argv.includes('--table')) {
       const wall = solveMs;
       const g = s.bestResponseGain().gain;
       rows.push({ b, g });
-      console.log(`${spot.name.padEnd(34)}${String(b).padStart(5)}x ${String(s.iterations).padStart(6)} ${(wall / 1000).toFixed(1).padStart(7)} ${(wall / s.iterations).toFixed(0).padStart(7)} ${g.map(x => x.toFixed(3).padStart(9)).join(' ')}`);
+      console.log(`${spot.name.padEnd(34)}${String(b).padStart(5)}x ${String(s.iterations).padStart(6)} ${(wall / 1000).toFixed(1).padStart(7)} ${(wall / s.iterations).toFixed(0).padStart(7)} ${g.map(x => x.toFixed(3).padStart(9)).join(' ')}${tagged.get(b).length ? '   <- ' + tagged.get(b).join(' + ') + ' budget' : ''}`);
     }
     all.push({ spot, rows });
   }
