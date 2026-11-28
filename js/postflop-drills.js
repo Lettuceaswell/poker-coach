@@ -11,9 +11,11 @@ const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const GAPS = [[2, 3], [9, 11], [20, 24]];
 import { fadeLevel, scaffoldHTML, wireHint, postflopParts, postflopExplain, optName } from './drill-coach.js';
 import { rewardFor, rewardHTML } from './reward.js';
-import { leakPlan, leakLabel, leakForPost, postflopProb, skillEstimate, targetDifficulty, diffWeight, pickWeighted, difficultyLine, progressLine, levelBefore } from './skill.js';
+import * as SCH from './schedule.js';
+import * as QZ from './quiz.js';
+import { leakPlan, leakLabel, leakForPost, postflopProb, skillEstimate, targetDifficulty, diffWeight, pickWeighted, difficultyLine, progressLine, levelBefore, holdReview } from './skill.js';
 const QK = 'pf-drill-q', MAX_GAP = 8; // at least one postflop item in every 9 so retrieval of postflop stays practiced
-let sinceLast = 0, SPOTS = null, installed = false, ctxRef = null, openPre = null, lastStreet = '';
+let streamN = 0, sinceQuiz = 0, sinceLast = 0, SPOTS = null, installed = false, ctxRef = null, openPre = null, lastStreet = '';
 
 const loadQ = () => { try { return JSON.parse(localStorage.getItem(QK)) || { n: 0, q: [] }; } catch { return { n: 0, q: [] }; } };
 const saveQ = (s) => { try { localStorage.setItem(QK, JSON.stringify(s)); } catch {} };
@@ -28,11 +30,15 @@ const bb = (x) => `${x >= 0 ? '' : '-'}${Math.abs(x).toFixed(1)} BB`;
 // reviews run on the GLOBAL drill counter (history.drills.n), so a miss returns 2-3 items later in the
 // whole stream and a long preflop run cannot pile up a postflop backlog
 const G = () => ctxRef.H.history.drills.n;
-const isDue = (st) => st.q.some(x => x.due <= G());
+const difOf = (x) => { const s = (SPOTS || []).find(y => y.id === x.id); return s ? 1 - Math.max(...s.mix) : null; };
+const ready = (x) => x.due <= G() && !holdReview(ctxRef.H, x, difOf(x));
+const isDue = (st) => st.q.some(ready);
 function pick(all, st) {
   const H = ctxRef.H;
-  const i = st.q.findIndex(x => x.due <= G());
+  const i = st.q.findIndex(ready);
   if (i >= 0) { const it = st.q.splice(i, 1)[0]; const s = all.find(x => x.id === it.id); if (s) return { s, box: it.box, review: true, leak: leakForPost(leakPlan(H), s) }; }
+  const cd = SCH.takeDue('post'); // across days: due items go before new ones
+  if (cd) { const s = all.find(x => x.id === cd.id); if (s) return { s, box: 0, review: true, leak: leakForPost(leakPlan(H), s) }; }
   // interleave: prefer a street different from the previous item; aim at the leak's street and difficulty
   let pool = all.filter(x => x.street !== lastStreet);
   if (!pool.length) pool = all;
@@ -53,7 +59,7 @@ async function show() {
   const where = s.hero === 'OOP' ? 'You act first' : s.facing ? `IP, facing a ${s.facing} BB bet` : 'IP, checked to you';
   const nm = { flop: 'Flop', turn: 'Turn', river: 'River' }[s.street];
   const lvl = fadeLevel(H);
-  openPanel('Drills', `<div class="drill" data-judgment="drill-postflop">
+  openPanel('Drills', `<div class="drill" data-judgment="drill-postflop" data-dif="${(1 - Math.max(...s.mix)).toFixed(3)}" data-review="${review ? 1 : 0}" data-solver="best:${best},worst:${s.mix.indexOf(Math.min(...s.mix))}">
     <p class="drill-spot">${nm} · ${where} · pot ${s.pot} BB · stack ${s.stack} BB</p>
     ${leak ? `<p class="drill-leak small">${leakLabel(leak)}</p>` : ''}
     <p class="drill-why small dim">${difficultyLine(H, 'postflop ' + s.street)}</p>
@@ -73,6 +79,7 @@ async function show() {
     const ok = gc !== 'r';
     if (!ok) st.q.push({ id: s.id, box: 0, due: G() + (review ? 5 : 3) + Math.floor(Math.random() * (review ? 3 : 2)) }); // missed again on return: wait 4-6 items, not 2-3
     else if (review && box + 1 < GAPS.length) { const g = GAPS[box + 1]; st.q.push({ id: s.id, box: box + 1, due: G() + 1 + g[0] + Math.floor(Math.random() * (g[1] - g[0] + 1)) }); }
+    SCH.record('post', s.id, ok, { id: s.id });
     const cur = loadQ(); cur.q = st.q; saveQ(cur);
     const typeKey = 'postflop ' + s.street, prior = H.typeAccuracy(typeKey), lvl0 = levelBefore(H, typeKey);
     H.recordDrill(ok, { n: 0, label: 'postflop', type: typeKey });
@@ -97,12 +104,30 @@ async function show() {
 
 // postflop chance follows the postflop share of leak cost (0.45 with no leaks yet), with a floor of one in 9
 function wantPost() {
-  if (isDue(loadQ())) return true;
+  if (isDue(loadQ()) || SCH.hasDue('post')) return true;
   if (sinceLast >= MAX_GAP || Math.random() < postflopProb(leakPlan(ctxRef.H))) return true;
   sinceLast++; return false;
 }
+// Quiz items are interleaved: one when a missed quiz item is due, a quiz item is due from an earlier day, or
+// after 7 other items (so at least 1 in 8); never two quiz items in a row.
+function quizTurn() {
+  streamN++;
+  const t = sinceQuiz >= 1 && (QZ.inSessionDue(streamN) || sinceQuiz >= 7 || (QZ.crossDayDue() && sinceQuiz >= 2));
+  if (t) sinceQuiz = 0; else sinceQuiz++;
+  return t;
+}
+function showQuizItem() { QZ.showQuiz(ctxRef, { title: 'Drills', moneyOnly: true, streamN: () => streamN, onNext: advance }); }
 function advance() {
+  if (quizTurn()) return showQuizItem();
   if (wantPost()) show(); else openPre(ctxRef);
+}
+// first item when Drills open: due items from earlier days go first (new items stay unlimited)
+export async function startDrills(ctx) {
+  ctxRef = ctx; streamN = 0; sinceQuiz = 1;
+  await spots();
+  if (SCH.hasDue('post') && SPOTS.length) return show();
+  if (!SCH.hasDue('pre') && SCH.hasDue('quiz')) return showQuizItem();
+  openPre(ctx);
 }
 
 // Called from the drill menu entry each time drills open; the click hook is installed once.
@@ -113,7 +138,8 @@ export function installPostflopDrills(ctx, openDrills) {
   document.addEventListener('click', (e) => {
     const b = e.target.closest?.('.drill-next');
     if (!b || b.dataset.pf) return;
-    if (!SPOTS || !SPOTS.length) return;
+    if (!SPOTS) return;
+    if (quizTurn()) { e.stopImmediatePropagation(); e.preventDefault(); showQuizItem(); return; }
     if (wantPost()) { e.stopImmediatePropagation(); e.preventDefault(); show(); }
   }, true);
 }

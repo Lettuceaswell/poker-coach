@@ -132,10 +132,10 @@ export function recordDrill(ok, item) {
   else if (item.review && box + 1 < GAPS.length) d.queue.push({ ...item, box: box + 1, due: d.n + gapFor(box + 1) });
   persist();
 }
-export function dueDrill() {
+export function dueDrill(hold) {
   const q = db.drills.queue || [];
   let best = -1;
-  q.forEach((x, k) => { if (x.due <= db.drills.n && (best < 0 || x.due < q[best].due)) best = k; });
+  q.forEach((x, k) => { if (x.due <= db.drills.n && !(hold && hold(x)) && (best < 0 || x.due < q[best].due)) best = k; });
   if (best < 0) return null;
   const it = q.splice(best, 1)[0];
   return { ...it, review: true };

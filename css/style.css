@@ -588,3 +588,13 @@ body.no-ripple .pos.btn-pos { border-color: #f2f2f2; }
 .an-count { margin: 4px 0 8px; }
 .status { padding-right: 112px; }
 .status .coach { margin-right: -112px; }
+
+/* quiz (w-quiz3): same layout as drills; neutral chips (green stays the coach's pick only) */
+.quiz-spot { font-size: 18px !important; font-weight: 600; text-align: center; margin: 10px 0 14px !important; }
+.quiz-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.quiz-acts .btn { flex: 1 1 40%; font-size: 16px; padding: 0 6px; }
+.quiz-acts .btn.chosen { border-color: #f2f2f2; color: #fff; }
+.quiz-acts .btn:disabled { opacity: .8; }
+.grade.qok { background: rgba(255, 255, 255, .14); color: #f2f2f2; }
+.grade.qno { background: rgba(255, 92, 92, .18); color: #ff6b6b; }
+.quiz-next-bar { position: sticky; bottom: 0; }

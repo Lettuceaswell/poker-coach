@@ -5,7 +5,8 @@ import { POSITIONS, STACK } from './preflop-tree.js';
 import { EQ_VS_RANDOM } from './strength.js';
 import { fadeLevel, scaffoldHTML, wireHint, preflopParts, preflopExplain } from './drill-coach.js';
 import { rewardFor, rewardHTML } from './reward.js';
-import { leakPlan, leakLabel, leakForPre, skillEstimate, targetDifficulty, diffWeight, pickWeighted, difficultyLine, progressLine, levelBefore } from './skill.js';
+import * as SCH from './schedule.js';
+import { leakPlan, leakLabel, leakForPre, skillEstimate, targetDifficulty, diffWeight, pickWeighted, difficultyLine, progressLine, levelBefore, holdReview } from './skill.js';
 
 // money state at the hero's decision, replayed from the walked path
 function priceAt(n, node, hero) {
@@ -66,8 +67,11 @@ const sameKind = (a, b) => a.type === b.type || a.hero === b.hero;
 
 function pickScenario(n, H) {
   const all = scenarios(n);
-  const due = H.dueDrill();
+  const due = H.dueDrill((x) => holdReview(H, x, x.dif));
   if (due && due.n === n) { const s = all.find(x => x.label === due.label); if (s) return { sc: s, cls: due.cls, item: due }; }
+  // across days: items whose next-due date has come (a miss is due the next day, then 3, 7, 16 days) go before new ones
+  const cd = SCH.takeDue('pre');
+  if (cd && cd.spec && cd.spec.n === n) { const s = all.find(x => x.label === cd.spec.label); if (s) return { sc: s, cls: cd.spec.cls, item: { box: 0, label: cd.spec.label, cls: cd.spec.cls, n } }; }
   // deliberate practice: ~97% of fresh preflop items come from the top priced leaks, weighted by BB cost
   const plan = leakPlan(H);
   const cost = (s) => { const l = leakForPre(plan, s.key); return l ? (l.bb || l.cost || 1) : 0; };
@@ -143,7 +147,7 @@ export async function openDrills(ctx) {
     const P = POSITIONS[n];
     const pr = { pot: px.pot, toCall: px.toCall, raiseTo: raiseA ? raiseA.to : 0, pos: P[sc.hero], type: sc.type, openerName: P[sc.opener], threeName: P[sc.three] };
     const lvl = fadeLevel(H);
-    const html = `<div class="drill" data-feature="trainer" data-judgment="drill-preflop">
+    const html = `<div class="drill" data-feature="trainer" data-judgment="drill-preflop" data-dif="${(1 - Math.max(...strategyAt(S.strat, node, cls))).toFixed(3)}" data-review="${item ? 1 : 0}" data-solver="${(() => { const q = strategyAt(S.strat, node, cls); return `best:${q.indexOf(Math.max(...q))},worst:${q.indexOf(Math.min(...q))}`; })()}">
       <p class="drill-spot">${sc.label} · pot ${Math.round(px.pot * 10) / 10} BB · ${Math.round(px.toCall * 10) / 10} to call</p>
       ${leak ? `<p class="drill-leak small">${leakLabel(leak)}</p>` : ''}
       <p class="drill-why small dim">${difficultyLine(H, 'preflop ' + sc.key)}</p>
@@ -167,7 +171,8 @@ export async function openDrills(ctx) {
       const [word, gc] = f >= 0.5 || t === topT ? ['Best', 'g'] : f >= 0.15 ? ['Good', 'g'] : f >= 0.03 ? ['Rare', 'y'] : ['Mistake', 'r'];
       const typeKey = 'preflop ' + sc.key;
       const prior = H.typeAccuracy(typeKey), lvl0 = levelBefore(H, typeKey);
-      H.recordDrill(gc === 'g', { n, label: sc.label, cls, box: item ? item.box : 0, review: !!item, type: typeKey });
+      H.recordDrill(gc === 'g', { n, label: sc.label, cls, box: item ? item.box : 0, review: !!item, type: typeKey, dif: +(1 - Math.max(...p)).toFixed(3) });
+      SCH.record('pre', `${n}|${sc.label}|${cls}`, gc === 'g', { n, label: sc.label, cls });
       // a spot missed again on its return waits 4-6 items instead of 2-3, so a struggling run is not all repeats (still within 8)
       if (gc !== 'g' && item) { const q = H.history.drills.queue, e = q[q.length - 1]; if (e && e.label === sc.label && e.cls === cls) { e.due = H.history.drills.n + 4 + Math.floor(Math.random() * 3); H.save(); } }
       const topK = p.indexOf(Math.max(...p));

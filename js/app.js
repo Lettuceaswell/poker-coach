@@ -11,7 +11,9 @@ import { preflopDetail, postflopDetail, villainView, storedPreflopGrid, nodeMixe
 import { gridHTML } from './grid.js';
 import { coachBlocks, explainText, isExpert, spotNums, renderVerdict, pickDir } from './calib-coach.js';
 import { openDrills } from './drills.js';
-import { installPostflopDrills } from './postflop-drills.js';
+import { installPostflopDrills, startDrills } from './postflop-drills.js';
+import { openQuiz } from './quiz.js';
+import { dueLine } from './schedule.js';
 import { openLibrary, openExport } from './library.js';
 import { openReview } from './review.js';
 import { openReport } from './report.js';
@@ -1406,7 +1408,8 @@ $('panelBody').addEventListener('click', (e) => {
 $('menuLeaks').addEventListener('click', openLeaks);
 $('menuHands').addEventListener('click', openHands);
 $('menuProgress').addEventListener('click', () => openPanel('Progress', progressHTML()));
-$('modeDrills').addEventListener('click', () => { closePanel(); const dctx = { strategies, loadStrategy, seats: settings.seats, openPanel: (t, h) => openPanel(t, h, '', { replace: true }), panelView, closePanel, H, gridHTML, nodeMixes, BB }; installPostflopDrills(dctx, openDrills); openDrills(dctx); });
+$('modeDrills').addEventListener('click', () => { closePanel(); const dctx = { strategies, loadStrategy, seats: settings.seats, openPanel: (t, h) => openPanel(t, h, '', { replace: true }), panelView, closePanel, H, gridHTML, nodeMixes, BB }; installPostflopDrills(dctx, openDrills); startDrills(dctx); });
+$('modeQuiz').addEventListener('click', () => { closePanel(); openQuiz({ openPanel: (t, h) => openPanel(t, h, '', { replace: true }), panelView, H }); });
 $('status').addEventListener('click', (e) => { if (e.target.closest('.why-btn')) { e.stopPropagation(); openCoachPanel(); } });
 
 // ---------- menu ----------
@@ -1419,6 +1422,7 @@ function showMenu() {
     ? `${game.players.length} players · ${session.hands} hands · ${net >= 0 ? '+' : ''}${net.toFixed(1)} BB${session.pfN ? ` · preflop ${Math.round(100 * session.pfGood / session.pfN)}%` : ''}`
     : `No-Limit Hold'em · 100 BB · ${settings.seats} players`;
   const lk = H.topLeaks(1)[0];
+  $('dueSub').textContent = dueLine(); $('quizSub').textContent = 'Short recall questions · ' + dueLine();
   $('drillSub').textContent = lk ? `Top leak: ${lk.label}` : 'Preflop spots from your leaks';
   $('menuTrend').innerHTML = progressMini();
   $('menu').classList.add('on');
