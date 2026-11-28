@@ -19,6 +19,12 @@ async function session(seed, hist, plan) {
   await p.click('#modeDrills');
   const items = [];
   for (let i = 0; i < plan.length; i++) {
+    // a quiz item is interleaved at least 1 in 8 (w-quiz3): answer it and move on; it is not a difficulty-scored drill item
+    for (let g = 0; g < 4; g++) {
+      await p.waitForSelector('.drill[data-dif], .quiz[data-judgment="quiz"]', { timeout: 15000 });
+      if (!(await p.$('.quiz[data-judgment="quiz"]'))) break;
+      await p.click('.quiz-acts button[data-i="0"]'); await p.click('.quiz-next-bar .drill-next'); await sleep(40);
+    }
     await p.waitForSelector('.drill[data-dif]', { timeout: 15000 });
     await sleep(30);
     const it = await p.evaluate(() => { const d = document.querySelector('.drill[data-dif]'); const s = d.dataset.solver.match(/best:(\d+),worst:(\d+)/); return { dif: +d.dataset.dif, review: d.dataset.review === '1', kind: d.dataset.judgment, best: +s[1], worst: +s[2], why: (d.querySelector('.drill-why') || {}).innerText || '' }; });
