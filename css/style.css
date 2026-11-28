@@ -587,3 +587,6 @@ body.no-ripple .pos.btn-pos { border-color: #f2f2f2; }
 .an-count { margin: 4px 0 8px; }
 .status { padding-right: 112px; }
 .status .coach { margin-right: -112px; }
+
+/* Settings has 10 rows now (turn-order highlight toggle): scroll instead of growing past the top of the screen */
+#settingsSheet { max-height: calc(100% - 24px); overflow-y: auto; overscroll-behavior: contain; }
