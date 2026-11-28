@@ -42,7 +42,8 @@ let contradictions = 0, onePoints = 0, ruleBad = 0, nearFold = 0, nearOk = 0, re
 const classCount = {}, ruleSeen = {}; const bad = [];
 for (const d of spots) {
   // the coach's pick as the grade chip sees it: highest-frequency action of the mix
-  const top = d.mix.slice().sort((a, b) => b.freq - a.freq)[0].t;
+  // pick comes from the shared function app.js grade() calls (pickDir); the legacy module has none, so it keeps the top-frequency reduce
+  const top = M.pickDir ? M.pickDir(d) : d.mix.slice().sort((a, b) => b.freq - a.freq)[0].t;
   const a = { truth: d.truthEq, lo: 20, hi: 45 };
   const verdict = strip(legacy ? legacyVerdict(d, d.truthEq, d.needPct) : M.renderVerdict(d, d.needPct, d.truthEq, '<span class="grade g">Best</span>.'));
   const explain = strip(legacy ? legacyExplain(d, a) : M.explainText({ kind: 'eq' }, d, a));

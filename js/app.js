@@ -9,7 +9,7 @@ import * as pf from './postflop-coach.js';
 import * as H from './history.js';
 import { preflopDetail, postflopDetail, villainView, storedPreflopGrid, nodeMixes } from './explain.js';
 import { gridHTML } from './grid.js';
-import { coachBlocks, explainText, isExpert, spotNums, renderVerdict } from './calib-coach.js';
+import { coachBlocks, explainText, isExpert, spotNums, renderVerdict, pickDir } from './calib-coach.js';
 import { openDrills } from './drills.js';
 import { installPostflopDrills } from './postflop-drills.js';
 import { openLibrary, openExport } from './library.js';
@@ -953,7 +953,7 @@ function grade(type) {
   for (const m of sp.mix) byT[m.t] = (byT[m.t] || 0) + m.freq;
   if (byT[t] === undefined && !(t === 'f' && byT.c !== undefined)) return;
   const f = byT[t] ?? 0;
-  const topT = Object.keys(byT).reduce((a, b) => (byT[b] > byT[a] ? b : a));
+  const topT = pickDir({ mix: sp.mix }); // one shared pick: the grade chip and the calibration verdict read the same function
   const mine = { freq: f };
   const top = topT === t ? mine : null;
   const [word, cls] = f >= 0.5 || mine === top ? ['Best', 'g'] : f >= 0.15 ? ['Good', 'g'] : f >= 0.03 ? ['Rare', 'y'] : ['Mistake', 'r'];
