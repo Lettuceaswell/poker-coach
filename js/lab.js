@@ -64,7 +64,7 @@ export function openLab(ctx) {
     <button class="btn f-btn" id="labSolve">Solve</button><div class="f-rows" id="labOut"></div></section>
   <section data-feature="nodelock" class="lab-sec"><h4>Node lock</h4>
     <p class="f-note">Fix what OOP does at the root, re-solve, and see how IP must respond. Uses the board, ranges, pot and stack above.</p>
-    <div class="f-row lab-btns"><button class="btn f-btn" id="labLockBet">Lock OOP: always bets</button><button class="btn f-btn" id="labLockChk">Lock OOP: always checks</button><button class="btn f-btn" id="labUnlock">Unlock</button></div>
+    <div class="f-row lab-btns"><button class="btn f-btn" id="labLockBet">Lock OOP: always bets</button><button class="btn f-btn" id="labLockChk">Lock OOP: always checks</button><button class="btn f-btn" id="labUnlock">Clear lock</button></div>
     <div class="f-rows" id="labLockOut"></div></section>
   <section data-feature="multiway" class="lab-sec"><h4>Multiway (3-way)</h4>
     <label class="f-row"><span>Spot</span><select class="f-sel" id="labMw">${mwOpts}</select></label><div class="f-rows" id="labMwOut"></div></section>
@@ -83,14 +83,14 @@ export function openLab(ctx) {
     return [`Board ${p.board}, bet ${p.size} percent of pot, pot ${p.pot} BB, stack ${p.stack} BB`, outLine(r.player === 1 ? 'IP' : 'OOP', r), `${r.combos || 0} combos in the acting range, 600 solver iterations`];
   });
   let lock = null;
-  const runLock = () => guard($('labLockOut'), `${lock === 'bet' ? 'OOP locked to always bet' : lock === 'check' ? 'OOP locked to always check' : 'No lock'}: solving...`, 'l', async () => {
+  const runLock = () => guard($('labLockOut'), `${lock === 'bet' ? 'OOP fixed to always bet' : lock === 'check' ? 'OOP fixed to always check' : 'No lock'}: solving...`, 'l', async () => {
     const p = cur(); const pot = +p.pot, sz = (p.size / 100) * pot;
     const eqP = solveJob(spot(p));
     const startFor = (k) => ({ bets: [k === 'bet' ? sz : 0, 0], toAct: 1 });
     const need = lock ? [lock] : ['bet', 'check'];
     const [eq, ...rs] = await Promise.all([eqP, ...need.map(k => solveJob(spot({ ...p, start: startFor(k) })))]);
-    const out = [`Board ${p.board}`, outLine('OOP equilibrium (unlocked)', eq)];
-    if (lock) out.push(`OOP locked: ${lock === 'bet' ? 'Bet' : 'Check'} 100%`, outLine(`IP response to the locked ${lock}`, rs[0]));
+    const out = [`Board ${p.board}`, outLine('OOP equilibrium (free choice)', eq)];
+    if (lock) out.push(`OOP fixed: ${lock === 'bet' ? 'Bet' : 'Check'} 100%`, outLine(`IP response to the fixed ${lock}`, rs[0]));
     else out.push('No lock set', outLine('IP response to a bet', rs[0]), outLine('IP response to a check', rs[1]));
     return out;
   });
