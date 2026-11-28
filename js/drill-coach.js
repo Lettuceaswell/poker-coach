@@ -85,7 +85,7 @@ function blockers(s) {
   const fs = Object.keys(suits).find(x => suits[x] >= 3);
   const ranks = s.board.map(c => c[0]);
   const hr = s.hand.filter(c => ranks.includes(c[0])).length;
-  if (fs && s.hand.some(c => c[1] === fs)) return `You hold a card of the flush suit, which removes some of their flush combos.`;
+  if (fs && s.hand.some(c => c[1] === fs)) return `You hold a card of the flush suit, which removes some of their flush hands.`;
   if (hr) return `You hold a card matching the board, so they have fewer ways to hold that rank.`;
   return `Your cards do not touch the board; blockers matter little here.`;
 }

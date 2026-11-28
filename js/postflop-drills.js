@@ -11,8 +11,9 @@ const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const GAPS = [[2, 3], [9, 11], [20, 24]];
 import { fadeLevel, scaffoldHTML, wireHint, postflopParts, postflopExplain, optName } from './drill-coach.js';
 import { rewardFor, rewardHTML } from './reward.js';
-const QK = 'pf-drill-q', P_POSTFLOP = 0.45;
-let SPOTS = null, installed = false, ctxRef = null, openPre = null, lastStreet = '';
+import { leakPlan, leakLabel, leakForPost, postflopProb, skillEstimate, targetDifficulty, diffWeight, pickWeighted, difficultyLine, progressLine, levelBefore } from './skill.js';
+const QK = 'pf-drill-q', MAX_GAP = 4; // at least one postflop item in every 5 so retrieval of postflop stays practiced
+let sinceLast = 0, SPOTS = null, installed = false, ctxRef = null, openPre = null, lastStreet = '';
 
 const loadQ = () => { try { return JSON.parse(localStorage.getItem(QK)) || { n: 0, q: [] }; } catch { return { n: 0, q: [] }; } };
 const saveQ = (s) => { try { localStorage.setItem(QK, JSON.stringify(s)); } catch {} };
@@ -24,14 +25,21 @@ async function spots() {
 const card = (c) => `<div class="card s-${SI[c[1]]}"><span class="rk">${c[0] === 'T' ? '10' : c[0]}</span><span class="st">${SG[c[1]]}</span></div>`;
 const bb = (x) => `${x >= 0 ? '' : '-'}${Math.abs(x).toFixed(1)} BB`;
 
+// reviews run on the GLOBAL drill counter (history.drills.n), so a miss returns 2-3 items later in the
+// whole stream and a long preflop run cannot pile up a postflop backlog
+const G = () => ctxRef.H.history.drills.n;
+const isDue = (st) => st.q.some(x => x.due <= G());
 function pick(all, st) {
-  st.n++;
-  let i = st.q.findIndex(x => x.due <= st.n);
-  if (i >= 0) { const it = st.q.splice(i, 1)[0]; const s = all.find(x => x.id === it.id); if (s) return { s, box: it.box, review: true }; }
-  // interleave: prefer a street different from the previous item
+  const H = ctxRef.H;
+  const i = st.q.findIndex(x => x.due <= G());
+  if (i >= 0) { const it = st.q.splice(i, 1)[0]; const s = all.find(x => x.id === it.id); if (s) return { s, box: it.box, review: true, leak: leakForPost(leakPlan(H), s) }; }
+  // interleave: prefer a street different from the previous item; aim at the leak's street and difficulty
   let pool = all.filter(x => x.street !== lastStreet);
   if (!pool.length) pool = all;
-  return { s: pool[Math.floor(Math.random() * pool.length)], box: 0, review: false };
+  const plan = leakPlan(H);
+  const target = targetDifficulty(skillEstimate(H, null).skill);
+  const s = pickWeighted(pool, (x) => diffWeight(1 - Math.max(...x.mix), target) * (leakForPost(plan, x) ? 3 : 1));
+  return { s, box: 0, review: false, leak: leakForPost(plan, s) };
 }
 
 async function show() {
@@ -39,7 +47,7 @@ async function show() {
   if (!all.length) return openPre(ctxRef);
   const { openPanel, panelView, H } = ctxRef;
   const st = loadQ();
-  const { s, box, review } = pick(all, st); saveQ(st);
+  const { s, box, review, leak } = pick(all, st); saveQ(st); sinceLast = 0;
   lastStreet = s.street;
   const best = s.mix.indexOf(Math.max(...s.mix)), evBest = Math.max(...s.ev);
   const where = s.hero === 'OOP' ? 'You act first' : s.facing ? `IP, facing a ${s.facing} BB bet` : 'IP, checked to you';
@@ -47,6 +55,8 @@ async function show() {
   const lvl = fadeLevel(H);
   openPanel('Drills', `<div class="drill" data-judgment="drill-postflop">
     <p class="drill-spot">${nm} · ${where} · pot ${s.pot} BB · stack ${s.stack} BB</p>
+    ${leak ? `<p class="drill-leak small">${leakLabel(leak)}</p>` : ''}
+    <p class="drill-why small dim">${difficultyLine(H, 'postflop ' + s.street)}</p>
     ${scaffoldHTML(postflopParts(s), lvl)}
     <div class="drill-board">${s.board.map(card).join('')}</div>
     <div class="drill-cards">${s.hand.map(card).join('')}</div>
@@ -61,16 +71,21 @@ async function show() {
     const i = +b.dataset.i, f = s.mix[i], cost = evBest - s.ev[i];
     const [word, gc] = i === best || f >= 0.5 ? ['Best', 'g'] : f >= 0.15 ? ['Good', 'y'] : ['Mistake', 'r'];
     const ok = gc !== 'r';
-    if (!ok) st.q.push({ id: s.id, box: 0, due: loadQ().n + 2 + Math.floor(Math.random() * 2) });
-    else if (review && box + 1 < GAPS.length) { const g = GAPS[box + 1]; st.q.push({ id: s.id, box: box + 1, due: loadQ().n + g[0] + Math.floor(Math.random() * (g[1] - g[0] + 1)) }); }
+    if (!ok) st.q.push({ id: s.id, box: 0, due: G() + 3 + Math.floor(Math.random() * 2) });
+    else if (review && box + 1 < GAPS.length) { const g = GAPS[box + 1]; st.q.push({ id: s.id, box: box + 1, due: G() + 1 + g[0] + Math.floor(Math.random() * (g[1] - g[0] + 1)) }); }
     const cur = loadQ(); cur.q = st.q; saveQ(cur);
-    const typeKey = 'postflop ' + s.street, prior = H.typeAccuracy(typeKey);
+    const typeKey = 'postflop ' + s.street, prior = H.typeAccuracy(typeKey), lvl0 = levelBefore(H, typeKey);
     H.recordDrill(ok, { n: 0, label: 'postflop', type: typeKey });
+    H.history.drills.queue = (H.history.drills.queue || []).filter(x => x.label !== 'postflop'); H.save(); // postflop reviews live in the postflop queue
     const rwd = rewardFor({ correct: i === best, topFreq: s.mix[best], prior, now: H.typeAccuracy(typeKey), review, label: typeKey }); // counts in drill stats; the dummy preflop-queue entry is ignored there
     acts.querySelectorAll('button').forEach((x, k) => { x.disabled = true; if (k === i) x.classList.add('chosen'); if (k === best) x.classList.add('coach-pick'); });
-    body.querySelector('.drill-out').innerHTML = `<p><span class="grade ${gc}">${word}</span> ${cost < 0.05 ? 'Matches the best play.' : `Costs ${bb(cost)} against the best play.`}</p>
+    const sizes = s.opts.map((o, k) => (/[\d.]/.test(o) && !/all-in/i.test(o) && s.mix[k] >= 0.01) ? `${optName(o).toLowerCase()} ${o.match(/[\d.]+/)[0]} BB` : null).filter(Boolean);
+    const mixLine = s.opts.map((o, k) => `${optName(o)} ${Math.round(s.mix[k] * 100)}%`).filter((_, k) => s.mix[k] >= 0.01).join('  ') + (sizes.length ? ` (${sizes.join(', ')})` : '');
+    body.querySelector('.drill-out').innerHTML = `<p><span class="grade ${gc}">${word}</span> ${nm} mix: ${mixLine}</p>
+      <p>${cost < 0.05 ? 'Matches the best play.' : `Costs ${bb(cost)} against the best play.`}</p>
       <p class="cb-explain" data-coach="explain">${postflopExplain({ s, best, k: i, cost, bb })}</p>
-      ${rewardHTML(rwd)}
+      ${rwd ? rewardHTML(rwd) : ''}
+      ${ok ? progressLine(H, typeKey, 'Postflop ' + s.street, lvl0) : ''}
       <table class="pf-ev">${s.opts.map((o, k) => `<tr class="${k === best ? 'g' : ''}"><td>${o}</td><td>${Math.round(s.mix[k] * 100)}%</td><td>${bb(s.ev[k])}</td><td>${k === best ? 'best' : bb(s.ev[k] - evBest)}</td></tr>`).join('')}</table>
       <p class="small dim">Solver mix and expected value in BB, measured from folding now. ${esc(s.prov || 'Ranges are approximate single raised pot ranges (Chen-score cutoffs).')}</p>`;
     const nb = document.createElement('div'); nb.className = 'drill-next-bar';
@@ -80,9 +95,14 @@ async function show() {
   });
 }
 
+// postflop chance follows the postflop share of leak cost (0.45 with no leaks yet), with a floor of one in 5
+function wantPost() {
+  if (isDue(loadQ())) return true;
+  if (sinceLast >= MAX_GAP || Math.random() < postflopProb(leakPlan(ctxRef.H))) return true;
+  sinceLast++; return false;
+}
 function advance() {
-  const due = loadQ().q.some(x => x.due <= loadQ().n + 1);
-  if (due || Math.random() < P_POSTFLOP) show(); else openPre(ctxRef);
+  if (wantPost()) show(); else openPre(ctxRef);
 }
 
 // Called from the drill menu entry each time drills open; the click hook is installed once.
@@ -94,7 +114,6 @@ export function installPostflopDrills(ctx, openDrills) {
     const b = e.target.closest?.('.drill-next');
     if (!b || b.dataset.pf) return;
     if (!SPOTS || !SPOTS.length) return;
-    const due = loadQ().q.some(x => x.due <= loadQ().n + 1);
-    if (due || Math.random() < P_POSTFLOP) { e.stopImmediatePropagation(); e.preventDefault(); show(); }
+    if (wantPost()) { e.stopImmediatePropagation(); e.preventDefault(); show(); }
   }, true);
 }

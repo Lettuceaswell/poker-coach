@@ -5,6 +5,7 @@ import { POSITIONS, STACK } from './preflop-tree.js';
 import { EQ_VS_RANDOM } from './strength.js';
 import { fadeLevel, scaffoldHTML, wireHint, preflopParts, preflopExplain } from './drill-coach.js';
 import { rewardFor, rewardHTML } from './reward.js';
+import { leakPlan, leakLabel, leakForPre, skillEstimate, targetDifficulty, diffWeight, pickWeighted, difficultyLine, progressLine, levelBefore } from './skill.js';
 
 // money state at the hero's decision, replayed from the walked path
 function priceAt(n, node, hero) {
@@ -67,8 +68,10 @@ function pickScenario(n, H) {
   const all = scenarios(n);
   const due = H.dueDrill();
   if (due && due.n === n) { const s = all.find(x => x.label === due.label); if (s) return { sc: s, cls: due.cls, item: due }; }
-  const leaks = H.topLeaks(6).map(l => l.key.split('|')[0]);
-  const fromLeaks = all.filter(s => leaks.includes(s.key));
+  // deliberate practice: ~90% of fresh items come from the top priced leaks, weighted by BB cost
+  const plan = leakPlan(H);
+  const cost = (s) => { const l = leakForPre(plan, s.key); return l ? (l.bb || l.cost || 1) : 0; };
+  const fromLeaks = all.filter(s => cost(s) > 0);
   let pool = fromLeaks.length && Math.random() < 0.9 ? fromLeaks : all;
   const prev = lastSc[lastSc.length - 1];
   if (prev) {
@@ -76,24 +79,21 @@ function pickScenario(n, H) {
     if (fresh.length) pool = fresh;
     else { const alt = all.filter(s => !sameKind(s, prev)); if (alt.length) pool = alt; }
   }
-  return { sc: pool[Math.floor(Math.random() * pool.length)], cls: null };
+  const sc = pool === fromLeaks || pool.every(s => cost(s) > 0) ? pickWeighted(pool, cost) : pool[Math.floor(Math.random() * pool.length)];
+  return { sc, cls: null, leak: leakForPre(plan, sc.key) };
 }
 
-// favor hands near the edge of the range: those teach the most
-// desirable difficulty (Bjork 1994): rolling accuracy >= 80% -> mostly mixed-strategy hands; <= 50% -> clear hands
-function pickClass(strat, node, reach, acc) {
+// desirable difficulty (Bjork 1994; Wilson et al. 2019): hands are weighted toward a target difficulty
+// (1 - top solver frequency) set by the skill estimate: strong -> hands where the solver mixes, weak -> clear hands
+function pickClass(strat, node, reach, target) {
   const w = [];
   for (let c = 0; c < 169; c++) {
     const p = strategyAt(strat, node, c);
     // only hands you'd actually hold here (your earlier actions in the hand)
     if (!p || reach[c] < 0.15) { w.push(0); continue; }
-    const play = node.acts.reduce((s, a, i) => s + (a.t !== 'f' ? p[i] : 0), 0);
-    const edge = 1 - Math.abs(2 * play - 1);
+    const dif = 1 - Math.max(...p);
     const combos = c % 14 === 0 ? 6 : Math.floor(c / 13) > c % 13 ? 4 : 12;
-    const mixed = play > 0.05 && play < 0.95;
-    if (acc != null && acc >= 0.8) w.push(combos * (0.05 + 3 * edge * edge + (mixed ? 1 : 0)));
-    else if (acc != null && acc <= 0.5) w.push(combos * (0.05 + 2 * (1 - edge) * (1 - edge) + (mixed ? 0 : 0.5)));
-    else w.push(combos * (0.15 + edge + (mixed ? 0.5 : 0)));
+    w.push(combos * diffWeight(dif, target));
   }
   let r = Math.random() * w.reduce((s, x) => s + x, 0);
   for (let c = 0; c < 169; c++) { r -= w[c]; if (r <= 0) return c; }
@@ -121,14 +121,14 @@ export async function openDrills(ctx) {
   if (!S || !S.strat) { openPanel('Drills', '<p class="dim">No solution available offline yet; open a table once with signal.</p>'); return; }
 
   const next = () => {
-    let sc, cls, node, reach, item = null;
+    let sc, cls, node, reach, item = null, leak = null;
     for (let tries = 0; tries < 20; tries++) {
       const pick = pickScenario(n, H);
       node = walk(n, pick.sc);
       if (!node) continue;
-      sc = pick.sc; item = pick.item || null;
+      sc = pick.sc; item = pick.item || null; leak = leakForPre(leakPlan(H), pick.sc.key);
       reach = reachAt(S.strat, n, node.path, sc.hero);
-      cls = pick.cls != null && reach[pick.cls] >= 0.15 ? pick.cls : pickClass(S.strat, node, reach, H.drillAccuracy());
+      cls = pick.cls != null && reach[pick.cls] >= 0.15 ? pick.cls : pickClass(S.strat, node, reach, targetDifficulty(skillEstimate(H, 'preflop ' + sc.key).skill));
       break;
     }
     if (!node) return;
@@ -145,6 +145,8 @@ export async function openDrills(ctx) {
     const lvl = fadeLevel(H);
     const html = `<div class="drill" data-feature="trainer" data-judgment="drill-preflop">
       <p class="drill-spot">${sc.label} · pot ${Math.round(px.pot * 10) / 10} BB · ${Math.round(px.toCall * 10) / 10} to call</p>
+      ${leak ? `<p class="drill-leak small">${leakLabel(leak)}</p>` : ''}
+      <p class="drill-why small dim">${difficultyLine(H, 'preflop ' + sc.key)}</p>
       ${scaffoldHTML(preflopParts(pr), lvl)}
       <div class="drill-cards">${cards.map(([r, s]) => `<div class="card s-${s}"><span class="rk">${r === 8 ? '10' : R[r]}</span><span class="st">${SG[s]}</span></div>`).join('')}</div>
       <div class="drill-acts">${node.acts.map((a, i) => `<button class="btn" data-i="${i}">${labels[i]}</button>`).join('')}</div>
@@ -164,7 +166,7 @@ export async function openDrills(ctx) {
       const topT = Object.keys(byT).reduce((x, y) => (byT[y] > byT[x] ? y : x));
       const [word, gc] = f >= 0.5 || t === topT ? ['Best', 'g'] : f >= 0.15 ? ['Good', 'g'] : f >= 0.03 ? ['Rare', 'y'] : ['Mistake', 'r'];
       const typeKey = 'preflop ' + sc.key;
-      const prior = H.typeAccuracy(typeKey);
+      const prior = H.typeAccuracy(typeKey), lvl0 = levelBefore(H, typeKey);
       H.recordDrill(gc === 'g', { n, label: sc.label, cls, box: item ? item.box : 0, review: !!item, type: typeKey });
       const topK = p.indexOf(Math.max(...p));
       body.querySelectorAll('.drill-acts button').forEach((x, k) => { x.disabled = true; if (k === i) x.classList.add('chosen'); });
@@ -175,14 +177,16 @@ export async function openDrills(ctx) {
       const cost = f >= 0.15 ? 0 : (1 - f) * pot * 0.25 * (1 - Math.min(1, f / 0.15));
       const bbLine = f >= 0.15 ? `<p class="dim small">Cost vs the coach's pick: about 0.0 BB (the solver mixes this play).</p>`
         : `<p class="dim small">Cost vs the coach's pick: about ${cost.toFixed(2)} BB per time (estimate from solver frequencies; it plays ${labels[node.acts.findIndex(a => a.t === topT)]} ${Math.round(100 * best)}%).</p>`;
-      const mix = node.acts.map((a, k) => `${labels[k]} ${Math.round(p[k] * 100)}%`).filter((_, k) => p[k] >= 0.01).join(' · ');
       const names = labels.map(l => l.replace(/\s+[\d.]+$/, ''));
+      const sizes = node.acts.map((a, k) => (a.t === 'r' && a.to < STACK && p[k] >= 0.01) ? `${names[k].toLowerCase()} to ${a.to}` : null).filter(Boolean);
+      const mix = names.map((nm, k) => `${nm} ${Math.round(p[k] * 100)}%`).filter((_, k) => p[k] >= 0.01).join(' · ') + (sizes.length ? ` (${sizes.join(', ')})` : '');
       const costTxt = f >= 0.15 ? 'Cost of your play versus the solver pick: 0 BB.' : `Cost of your play versus the solver pick: about ${cost.toFixed(2)} BB per time.`;
       const expl = preflopExplain({ names, p, top: topK, k: i, cls: className(cls), pr, cost: costTxt, pos: pr.pos });
       const rwd = rewardFor({ correct: i === topK, topFreq: p[topK], prior, now: H.typeAccuracy(typeKey), review: !!item, label: sc.key });
       body.querySelector('.drill-out').innerHTML = `<p><span class="grade ${gc}">${word}</span> ${className(cls)}: ${mix}</p>
         <p class="cb-explain" data-coach="explain">${expl}</p>
         ${rewardHTML(rwd)}
+        ${gc === 'g' ? progressLine(H, typeKey, sc.key, lvl0) : ''}
         ${bbLine}
         ${gridHTML({ mixes: nodeMixes(S.strat, node), mark: cls, reach })}`;
       const nb = document.createElement('div'); nb.className = 'drill-next-bar';
