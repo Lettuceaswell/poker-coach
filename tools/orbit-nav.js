@@ -21,7 +21,7 @@ for (let k = 0; k < 800 && !reviewed; k++) {
     const t = await title();
     if (t.startsWith('Orbit') && await p.$('.calq')) {
       console.log('spot:', (await p.$eval('.spot', e => e.innerText)).replace(/\n/g, ' | '));
-      for (let g = 0; g < 4; g++) { const btn = await p.$('.calq .reveal:not([disabled])'); if (!btn) break; await btn.click(); await p.waitForTimeout(150); } // questions appear one at a time
+      for (let g = 0; g < 4; g++) { const btn = await p.$('.calq .reveal:not([disabled])'); if (!btn) { const nq = await p.$('.next-q'); if (!nq) break; await nq.click(); await p.waitForTimeout(150); continue; } await btn.click(); await p.waitForTimeout(150); } // questions appear one at a time
       const verdict = await p.$eval('.verdict-box', e => e.innerText);
       console.log('verdict:', verdict);
       check(verdict.length > 10, 'verdict shown after both reveals');
