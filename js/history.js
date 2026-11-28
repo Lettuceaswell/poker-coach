@@ -26,7 +26,9 @@ export function beginHand(game) {
 export function logDecision(rec) {
   if (!cur) return;
   cur.decisions.push(rec);
+  db.live = cur; // in-progress hand, so review/report see it before the hand ends
   addLeak(rec.leak);
+  persist();
 }
 
 // leaks: only clear mistakes on exact/solved spots count
@@ -51,6 +53,7 @@ export function endHand(game) {
   if (db.hands.length > MAX_HANDS) db.hands = db.hands.slice(-MAX_HANDS);
   const done = cur;
   cur = null;
+  db.live = null;
   persist();
   return done;
 }

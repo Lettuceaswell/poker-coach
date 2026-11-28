@@ -143,7 +143,7 @@ export async function openDrills(ctx) {
     const P = POSITIONS[n];
     const pr = { pot: px.pot, toCall: px.toCall, raiseTo: raiseA ? raiseA.to : 0, pos: P[sc.hero], type: sc.type, openerName: P[sc.opener], threeName: P[sc.three] };
     const lvl = fadeLevel(H);
-    const html = `<div class="drill" data-judgment="drill-preflop">
+    const html = `<div class="drill" data-feature="trainer" data-judgment="drill-preflop">
       <p class="drill-spot">${sc.label} · pot ${Math.round(px.pot * 10) / 10} BB · ${Math.round(px.toCall * 10) / 10} to call</p>
       ${scaffoldHTML(preflopParts(pr), lvl)}
       <div class="drill-cards">${cards.map(([r, s]) => `<div class="card s-${s}"><span class="rk">${r === 8 ? '10' : R[r]}</span><span class="st">${SG[s]}</span></div>`).join('')}</div>

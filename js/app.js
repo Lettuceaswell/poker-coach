@@ -11,6 +11,9 @@ import { gridHTML } from './grid.js';
 import { coachBlocks, explainText, isExpert } from './calib-coach.js';
 import { openDrills } from './drills.js';
 import { installPostflopDrills } from './postflop-drills.js';
+import { openLibrary, openExport } from './library.js';
+import { openReview } from './review.js';
+import { openReport } from './report.js';
 import { progressHTML, progressMini } from './progress.js';
 
 const SB = 5, BB = 10, START = 100 * BB;
@@ -1318,3 +1321,10 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 
 // test hook
 window.__poker = { game: () => game, settings, play, coach: () => cs };
+
+// ---------- feature screens: spot library, hand review, report, export (lane b2) ----------
+const featCtx = () => ({ strategies, loadStrategy, seats: settings.seats, openPanel, panelView, H });
+$('menuLibrary').addEventListener('click', () => openLibrary(featCtx()));
+$('menuReview').addEventListener('click', () => openReview(featCtx()));
+$('menuReport').addEventListener('click', () => openReport(featCtx()));
+$('menuExport').addEventListener('click', () => openExport(featCtx()));
