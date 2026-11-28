@@ -20,17 +20,15 @@ const snap = () => p.evaluate(() => { const c = document.querySelector('.calq[da
   return { open_judgments: document.querySelectorAll('[data-judgment]').length, calq_total: all.length, spot: document.querySelector('.spot')?.innerText.replace(/\n/g, ' | '), next: document.querySelector('.next-spot')?.innerText,
     q: c && c.querySelector('p').innerText, inputs: c && c.querySelector('[data-coach=inputs]').innerText, method: c && c.querySelector('[data-coach=method]')?.innerText, hint_hidden: c && c.querySelector('[data-coach=hint]').hidden, hint: c && c.querySelector('[data-coach=hint]').innerText, explain: c && c.querySelector('[data-coach=explain]').innerText }; });
 const reps = [];
-for (let rep = 0; rep < 3; rep++) {
-  for (let q = 0; q < 2; q++) {
-    const before = await snap(); if (!before.q) break;
-    await p.click('.calq[data-judgment] [data-coach="hint-toggle"]'); const hintShown = await p.evaluate(() => !document.querySelector('.calq[data-judgment] [data-coach=hint]').hidden);
-    const cal0 = await p.evaluate(() => JSON.parse(localStorage.getItem('poker-coach-history-v1')).calib.n);
-    const el = await p.$('.calq[data-judgment] .reveal'); await el.click(); await sleep(150);
-    const after = await p.evaluate(() => { const c = [...document.querySelectorAll('.calq.answered')].pop(); return { explain: c.querySelector('[data-coach=explain]').innerText, res: c.querySelector('.calres').innerText, judgment_attr: c.hasAttribute('data-judgment'), open_judgments: document.querySelectorAll('[data-judgment]').length }; });
-    const cal1 = await p.evaluate(() => JSON.parse(localStorage.getItem('poker-coach-history-v1')).calib.n);
-    reps.push({ rep: reps.length + 1, before, hintShown, after, calib_n: [cal0, cal1] });
-  }
-  const nx = await p.$('.next-spot'); if (!nx) break; await nx.click(); await sleep(150);
+for (let step = 0; step < 6; step++) {
+  const before = await snap(); if (!before.q) break;
+  await p.click('.calq[data-judgment] [data-coach="hint-toggle"]'); const hintShown = await p.evaluate(() => !document.querySelector('.calq[data-judgment] [data-coach=hint]').hidden);
+  const cal0 = await p.evaluate(() => JSON.parse(localStorage.getItem('poker-coach-history-v1')).calib.n);
+  const el = await p.$('.calq[data-judgment] .reveal'); await el.click(); await sleep(150);
+  const after = await p.evaluate(() => { const c = [...document.querySelectorAll('.calq.answered')].pop(); return { explain: c.querySelector('[data-coach=explain]').innerText, res: c.querySelector('.calres').innerText, judgment_attr: c.hasAttribute('data-judgment'), open_judgments: document.querySelectorAll('[data-judgment]').length, continue_btn: document.querySelector('.next-q, .next-spot')?.innerText }; });
+  const cal1 = await p.evaluate(() => JSON.parse(localStorage.getItem('poker-coach-history-v1')).calib.n);
+  reps.push({ rep: reps.length + 1, before, hintShown, after, calib_n: [cal0, cal1] });
+  const nx = await p.$('.next-q') || await p.$('.next-spot'); if (!nx) break; await nx.click(); await sleep(150);
 }
 console.log(JSON.stringify(reps, null, 1)); if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(reps, null, 1));
 await br.close(); srv.close();
