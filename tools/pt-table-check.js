@@ -24,6 +24,7 @@ const srv = await startServer(root), browser = await launch();
 async function page(vp, seed, settings) {
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.dsf, isMobile: true, hasTouch: true });
   await ctx.addInitScript(seedScript(seed)); await ctx.addInitScript(settingsScript(settings));
+  await ctx.addInitScript(() => { window.__lt = []; try { new PerformanceObserver(l => { for (const e of l.getEntries()) window.__lt.push([e.startTime, e.duration]); }).observe({ type: 'longtask', buffered: true }); } catch {} });
   const p = await ctx.newPage(); p.setDefaultTimeout(6000); await p.goto(srv.origin + '/'); await p.waitForSelector('#modeCash');
   if (INSETS) await p.addStyleTag({ content: `#app { padding-top: max(${vp.sat}px, 10px) !important; padding-bottom: max(${vp.sab}px, 14px) !important; }` });
   return p;
@@ -108,14 +109,15 @@ const res = [];
 const panelOn = (p) => p.evaluate(() => document.getElementById('panel')?.classList.contains('on'));
 const keyOf = (v) => v.key + '|' + v.kind;
 async function combo(n, vp) {
-  const r = { combo: `${n}p@${vp.width}x${vp.height}`, hands: 0, streets: {}, chipViol: [], backViol: [], backsMax: 0, foldedSeen: 0, activeSeen: 0, polls: 0, mix: [] };
+  const r = { combo: `${n}p@${vp.width}x${vp.height}`, hands: 0, streets: {}, chipViol: [], backViol: [], backsMax: 0, foldedSeen: 0, activeSeen: 0, polls: 0, mix: [], longTasks: [] };
   const S = (s) => (r.streets[s] ||= { polls: 0, chips: 0, chipViol: 0, backViol: 0 });
   const wantPlay = ONLY.includes('chips') || ONLY.includes('backs');
   const seenAll = () => ['preflop', 'flop', 'turn'].every(x => r.streets[x]?.chips > 0);
   for (let h = 0; wantPlay && (h < HANDS || (!seenAll() && h < HANDS * 4)); h++) { // extra hands only until flop and turn chips were observed
+    let hsMark = 0;
     const p = await page(vp, 20261127 + n * 1000 + vp.width + h * 17 + 3, { seats: n, speed: 'fast', coach: 'always', orbitReview: false, calibration: false });
     try {
-      await p.click('#modeCash'); const t0 = Date.now(); const streak = new Map(); let resultPolls = 0, shot = false;
+      await p.click('#modeCash'); hsMark = await p.evaluate(() => performance.now()); const t0 = Date.now(); const streak = new Map(); let resultPolls = 0, shot = false;
       while (Date.now() - t0 < 28000) {
         if (await panelOn(p)) { await p.click('#panelClose').catch(() => {}); await sleep(100); }
         const c = await p.evaluate('(' + CHIPS + ')()'); const t = await p.evaluate('(' + TABLE + ')()'); r.polls++;
@@ -134,6 +136,8 @@ async function combo(n, vp) {
       }
       r.hands++;
     } catch (e) { r.error = String(e.message).slice(0, 100); }
+    // longtask check: no main-thread task > 50 ms in the 1.5 s after the hand starts (placeTable + deal)
+    try { const lt = await p.evaluate(() => window.__lt); const hs0 = hsMark; for (const [st, d] of lt) if (st >= hs0 && st < hs0 + 1500 && d > 50) r.longTasks.push(Math.round(d)); } catch {}
     await p.context().close().catch(() => {});
   }
   if (ONLY.includes('mix') && n === 6) { // size-only property: 2..6-action spots, forced through the real coach renderer, with the coach on
@@ -172,6 +176,7 @@ const jobs = []; for (const n of SEATS) for (const vp of SIZES) jobs.push([n, vp
 let k = 0; await Promise.all(Array.from({ length: +arg('--par', 3) }, async () => { while (k < jobs.length) { const [n, vp] = jobs[k++]; await combo(n, vp); } }));
 await browser.close(); srv.close();
 res.sort((x, y) => x.combo.localeCompare(y.combo));
+let lt = 0; for (const r of res) lt += r.longTasks.length; if (lt) console.log('  longtasks > 50 ms in the first 1.5 s of a hand:', res.filter(r => r.longTasks.length).map(r => r.combo + ' ' + r.longTasks).join('; '));
 let hands = 0, cv = 0, bv = 0, mv = 0, blind = 0;
 for (const r of res) {
   hands += r.hands; cv += r.chipViol.length; bv += r.backViol.length;
@@ -184,6 +189,7 @@ for (const r of res) {
   if (r.mixError) { mv++; console.log('  mix ERR', r.combo, r.mixError); }
   if (ONLY.includes('mix') && r.combo.startsWith('6p') && r.mix.length !== 5) { mv++; console.log('  mix incomplete', r.combo, r.mix.length); }
 }
+console.log(`longTasksOver50ms ${lt}`);
 console.log(`TOTAL hands ${hands} chipViolations ${cv} backViolations ${bv} mixFailures ${mv} combosMissingChipStreets ${blind}`);
 if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify({ hands, chipViolations: cv, backViolations: bv, mixFailures: mv, res }, null, 1));
-process.exit(cv || bv || mv || blind ? 1 : 0);
+process.exit(cv || bv || mv || blind || lt ? 1 : 0);
