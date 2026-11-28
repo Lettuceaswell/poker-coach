@@ -1292,11 +1292,21 @@ function makeApi(ctx) {
       if (node.t === ACT) {
         if (node.player !== player) continue;
         const A = node.actions.length, n = L.n, a = step.a;
+        const prev = r, nr = new Float64Array(n);
+        let reach = 0;
         for (let h = 0; h < n; h++) {
           let tot = 0;
           for (let b = 0; b < A; b++) tot += node.sum[b * n + h];
-          r[h] *= tot > 0 ? node.sum[a * n + h] / tot : 1 / A;
+          nr[h] = prev[h] * (tot > 0 ? node.sum[a * n + h] / tot : 1 / A);
+          reach += nr[h];
         }
+        // Early in a solve the average strategy can give this action zero
+        // weight for every combo (e.g. after 1 iteration OOP bets its whole
+        // range). Then the line has no reach and its values would be NaN, so
+        // fall back to the uniform strategy for this step: the line is
+        // off-path anyway and values stay defined.
+        if (!(reach > 0)) for (let h = 0; h < n; h++) nr[h] = prev[h] / A;
+        r = nr;
       } else {
         // Re-express the range in the representative subtree's frame:
         // new(k) = old(gp(k)), then drop combos holding the rep card.
