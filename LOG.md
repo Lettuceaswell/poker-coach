@@ -22,6 +22,14 @@ Feature decisions live in `SPEC.md`; the plan lives in `TODO.md`.
 | `node tools/calib/run.js --players N --rounds R --flops K --minutes M --workers W --out <dir>` | Calibrated-preflop pipeline (writes only to `--out`, never `data/preflop-*.bin`) |
 | `node tools/calib/apply.js <dir>` | Gate: refuses unless gauges improve; `--apply` writes the bins and repacks |
 | `node tools/flopdrills/build.js --lines ... --flops K --secs S --out <dir>` | Flop drill spots from solved preflop ranges; `--merge` folds them into `data/postflop-drills.json` |
+| `node tools/threeway-test.js [--quick|--table]` | 3-way river solver (js/postflop/solver3.js): conservation, brute-force best response, convergence table |
+| `node tools/postflop-regress.js` | Regression for the live-detail flake (zero reach when the OOP check averaged 0 after 1 iteration); fails on 6ef7808 |
+| `node tools/legib-chips.js` | 80 seeded hands x 3-6 seats x 390x844 / 360x740 / 430x932@3x, coach on and off, with iOS safe-area insets emulated; frozen chip check, exits 1 on any violation |
+| `node tools/ripple-shots.js` | Position-highlight lap-end screenshots, per-seat lit state and ring pixels for every seat count |
+| `node tools/pt-table-check.js` | Playtest notes 2/3/5: chips clear of board and card backs, two backs per active opponent, folded seats faded, mix line inside the table, no main-thread task over 50 ms in the first 1.5 s of a hand |
+| `node tools/pt-assist-test.js [--only A\|B\|C\|R]` | Playtest notes 1/7: assisted decisions kept out of his record; Analysis panel (~4 min) |
+| `node tools/pt-hud-test.js [--only 6\|8\|9]` | Playtest notes 6/8/9: no timing tell with the coach hidden, ripple toggle, +X BB per winner (~11 min) |
+| `node tools/calib-verdict-test.js` | Playtest note 4: the calibration verdict never contradicts the coach's pick (241 spots) |
 
 The browser tools use playwright-core with `/usr/bin/chromium`. Long solves run under `systemd-run --user`; sessions kill background shells.
 
@@ -132,3 +140,23 @@ The browser tools use playwright-core with `/usr/bin/chromium`. Long solves run 
 - Wording rule: no Lab text may say "unlock", "unlocked" or "locked" (frozen GATE regex, tools/score/v2/cr-helpers.js:62, reads them as a paywall) nor "blocked/unblocked" (contains "locked"): use "fixed", "Clear lock", "removed by board cards". Buttons still contain "lock" (the reach nodelock item taps the first /lock/ button).
 - Lab 3-way river section (`data-feature="threeway"`): solver3 in js/lab-worker.js, `THREEWAY_LAB_ITERS` (= `THREEWAY_LIVE_ITERS`, 80) fixed iterations, progress line, a new solve replaces a running one, label "No guarantee" + sentence, best-response gain per seat in percent of the pot. `node tools/threeway-test.js --table` now prints Lab and phone budget rows.
 - Measured (taskset core 0): fast preset 46/54/65 combos 0.4 s total (solve + gain), wider preset 97/98/136 combos ~1.7-2.6 s; phone ~4x.
+
+## 2026-11-28 Zenith run 3 (branch zenith-run3): ship 1, CACHE v20
+
+Ship 1 carries Levi's iPhone playtest fixes (PLAYTEST.md notes 1-10, sealed by the g-pt gate and repaired by w-pt-fix/w-pt-fix2), the flake fix and the three-player river solver. CACHE `poker-coach-v19` -> `v20`; the precache list now also holds `js/skill.js` and the eight `data/preflop-N.bin.gz/.vis.gz` files the app fetches (before, only files already visited were cached at runtime).
+
+**Playtest fixes (what changed / how to see it on the phone / the test)**
+1. Assisted decisions out of his record: a decision made after the solver's pick was visible (coach "always", Why?, range peek, Analysis reveal) is flagged and skipped by accuracy, leaks, grades, progress and the report. Look: Settings and Analysis > Stats show the assisted count; hand history tags "Assisted". Test: `tools/pt-assist-test.js` (A/B/C/R). Run C (seeded no-assist run identical to the old code) is not fully proven.
+2. Bet chips never sit under board cards or empty board slots, also at 430x932 with safe-area insets: `placeTable()` in js/app.js places from real rects. Look: any 6-max preflop hand with the BB chip. Test: `tools/pt-table-check.js`, `tools/legib-chips.js`.
+3. Two face-down card backs for every opponent still in; folded seats fade (cards and avatar, not label text). Test: `tools/pt-table-check.js`.
+4. The calibration verdict follows the coach's pick (same `pickDir` as the grade chip) and teaches the margin (price, players behind, realization); the rule of thumb matches the hand type. Look: orbit review > calibration on BTN 7d6d vs an HJ open. Test: `tools/calib-verdict-test.js`.
+5. The solver mix line fits at every action count (shorter labels, own row). Test: `tools/pt-table-check.js`.
+6. With the coach not on "always" the raise button and size chip never change during a decision; the default is labelled "X is your last size here". Test: `tools/pt-hud-test.js --only 6`.
+7. One Analysis button (`#analysisBtn` on the table, `#menuAnalysis` in the menu): Range, History, Opponents, Board, Odds, Leaks, Stats, Tools. Test: `tools/pt-assist-test.js --only R`.
+8. Settings toggle for the turn-order highlight (default on). Test: `tools/pt-hud-test.js --only 8`, `tools/ripple-shots.js`.
+9. The end-of-hand freeze shows "+X BB" at every winner, split and side pots per winner. Test: `tools/pt-hud-test.js --only 9`.
+10. Orbit review: hands (strongest first) on top, calibration questions below. Test: `tools/orbit-nav.js`, `tools/calib-verdict-test.js`.
+
+**Other landed work.** `postflop-regress.js` flake root cause: `reachAlong` gave zero reach on an all-zero average strategy after one iteration (uniform fallback). `js/postflop/solver3.js` (3-way river CFR+, brute-force best response in the same file; not wired into the app yet). `js/skill.js` (leak plan, skill-based drill difficulty, mastery line). Calibration pipeline `--damp` / `--min-iters`; run 2 flop drills merged (585 flop spots). Quiz, Lab and live-solve work from other lanes are not in this ship.
+
+**Overnight units at ship time (about 01:40).** `poker-calib` (r3n6, 22 flops x 150 s, damp 0.5): round 2 postflop finished (308 solves, 0 errors, 99.9 min), MCCFR running; nothing applied to `data/preflop-*.bin`. `poker-flopnight` finished (306 spots from 125 flops at 300 s, `data/flopdrills/night/flops-night300.json`, not merged yet). Status file: `tools/score/v3-calib.md`.

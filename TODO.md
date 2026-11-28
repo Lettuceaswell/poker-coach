@@ -23,6 +23,11 @@ Ranked by leverage. The goal: answers you can trust like GTO Wizard's, computed 
 
 *Cost:* about a day of building, then 1–3 overnight runs. No phone changes: the app just loads new `preflop-*.bin`.
 
+## Status 2026-11-28 (Zenith run 3, ship 1 = CACHE v20)
+- Playtest notes (PLAYTEST.md): 1 built (run C identity check not fully proven), 2 built, 3 built, 4 built, 5 built, 6 built, 7 built (Analysis, 8 tabs), 8 built, 9 built, 10 built. Open: confirm 2/3/5 on the real iPhone (430x932, safe-area insets).
+- Calibrated preflop: r3n6 round 2 MCCFR running, apply gate not yet run. Flop re-solve finished (306 spots, not merged).
+- Three-player river solver built (js/postflop/solver3.js), not yet in the app.
+
 ## Next steps after Zenith run 2
 - Morning: check the units, apply if the gate passes, re-score (MORNING.md).
 - Quiz prompt type (coaching quiz 0/2.25); calibration coaching is 1.35/2.25; reward 2/3.
