@@ -6,6 +6,8 @@ Ranked by leverage. The goal: answers you can trust like GTO Wizard's, computed 
 
 **1. Replace the preflop shortcut with real postflop values ("calibrated preflop").**
 
+*Status 2026-11-27: pipeline built and validated; running overnight as `poker-calib` (6-max 4 rounds, then 5/4/3) and `poker-flopdrills`. Morning: follow `tools/score/v2/MORNING.md` (check, `apply.js` gate, re-score with gauge v2). Nothing is applied to `data/preflop-*.bin` until the gate passes.*
+
 *Why first:* every preflop answer, every flop range, and every grade built on them inherits the realization guess, a flat 1.14 / 0.83 adjusted by hand shape. It is the known cause of the SB's 56% limping, the BTN at 46% (vs ~42%) and the BB defending 62%. Pio does it properly by attaching real postflop trees to preflop.
 
 *Plan* (runs overnight on BigOma as `systemd-run` jobs, Node, multicore):
@@ -20,6 +22,12 @@ Ranked by leverage. The goal: answers you can trust like GTO Wizard's, computed 
    - the drift between rounds.
 
 *Cost:* about a day of building, then 1–3 overnight runs. No phone changes: the app just loads new `preflop-*.bin`.
+
+## Next steps after Zenith run 2
+- Morning: check the units, apply if the gate passes, re-score (MORNING.md).
+- Quiz prompt type (coaching quiz 0/2.25); calibration coaching is 1.35/2.25; reward 2/3.
+- Learning gauge: deliberate practice and desirable difficulty sub-scores are 0.
+- Library lacks postflop spots by board; node-lock is all-or-nothing; multiway is a labelled estimate; preflop is one stack depth (stacks are postflop only).
 
 ## Then
 

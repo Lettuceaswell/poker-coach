@@ -45,3 +45,19 @@ Rejected:
 - Flat OOP limped-pot realization haircut (SB limp 56->45%, still far from ~0%; BTN worse).
 
 Decided by Levi 2026-11-27: grade chips and +BB in review panels stay green. Also yes to: the overnight calibrated-preflop solve (TODO #1), overnight flop drill spots, and a reward moment after drill answers if it serves learning.
+
+## Zenith run 2, 2026-11-27
+
+Judged by gauge v2 (`tools/score/v2`). Scores are category points; noise bands (MDE) in SCORE.md.
+
+Kept:
+- Chip placement and a position-highlight lap that lights seats cumulatively, holds all lit, then fades to the button. Legibility 10.33 -> 11.91 (MDE 0.5). Design rationale is perceptual, not a learning claim.
+- 13 px text, AA contrast, 44 px taps, no clipping on every screen: legibility 10.32 -> 19.71 (result-screen sampling added in v2.1 accounts for part of the baseline shift). Cognitive-load reasoning (Sweller 1988), speculative as a learning effect.
+- Calibration rebuilt as coaching: definition, inputs, worked mental-math method, hint before commit, explanation on reveal, scaffolding faded by hit rate. Worked examples then fading (Sweller 1985/1988; Renkl & Atkinson 2003; Kalyuga 2003 expertise reversal); calibration training (Hubbard 2014). Coaching calibration 0 -> 1.35/2.25.
+- Drill coaching (preflop and postflop) with the same scaffold and a surprise-sized reward after hard correct answers, rare on wrong: coaching 0 -> 10.85/15. Reward prediction error (Schultz, Dayan & Montague 1997); immediate specific feedback (Hattie & Timperley 2007); retrieval practice (Roediger & Karpicke 2006). Reward effect on long-term learning is speculative; Amabile & Kramer 2011 (progress principle) is speculative evidence.
+- Feature reach: spot library, hand review vs solver with BB cost per decision, aggregated leak report, export (JSON/CSV): reach 0 -> 8.34. Lab: custom solve (600 fixed iterations), node-lock, multiway labelled estimate, stack depths: reach 13.34. Deliberate practice (Ericsson 1993) motivates leak reports; speculative for transfer.
+- Drill ranges rebuilt from solved preflop strategy; flop spots from the overnight flop solves. Overnight calibrated-preflop pipeline (TODO #1) running.
+
+Incomplete / not shipped: quiz prompt type; deliberate-practice and desirable-difficulty learning sub-scores; postflop library by board; all-or-nothing node-lock; multiway is an estimate, not a solve; preflop at one stack depth.
+
+Rejected: none by the orchestrator as a feature. Gauge-side: static review/trainer text can earn reach points (accepted risk, diffs read by hand).

@@ -18,6 +18,10 @@ Feature decisions live in `SPEC.md`; the plan lives in `TODO.md`.
 | `node tools/orbit-nav.js` | Orbit review: pivotal spot and verdict, Back navigation, reopening from Hands, blind-hand results |
 | `node tools/score/app-score.js [--json out.json]` | The whole-experience gauge (accuracy 30 / speed 15 / learning 40 / rules 15, vetoes cap at 40). ~2.5 min, runs every check above. Frozen: see `tools/score/SCORE.md`, `FROZEN.sha256` |
 | `node tools/solve.js <players> <minutes> [seed]` | Preflop solve; follow with `node tools/pack.js` |
+| `node tools/score/v2/app-score-v2.js [--json out.json] [--no-v1 --only <category>] [--root <dir>]` | Gauge v2 (accuracy 20, speed 10, learning 20, legibility 20, coaching 15, reach 15; v1 vetoes cap at 40). ~3-4 min full, ~55 s with `--no-v1`. Frozen: `tools/score/v2/SCORE.md`, `FROZEN.sha256` |
+| `node tools/calib/run.js --players N --rounds R --flops K --minutes M --workers W --out <dir>` | Calibrated-preflop pipeline (writes only to `--out`, never `data/preflop-*.bin`) |
+| `node tools/calib/apply.js <dir>` | Gate: refuses unless gauges improve; `--apply` writes the bins and repacks |
+| `node tools/flopdrills/build.js --lines ... --flops K --secs S --out <dir>` | Flop drill spots from solved preflop ranges; `--merge` folds them into `data/postflop-drills.json` |
 
 The browser tools use playwright-core with `/usr/bin/chromium`. Long solves run under `systemd-run --user`; sessions kill background shells.
 
@@ -108,3 +112,13 @@ The browser tools use playwright-core with `/usr/bin/chromium`. Long solves run 
 
 ## Calibrated-preflop pipeline (Zenith run 2, TODO #1) — built 2026-11-27
 `node tools/calib/run.js --players 6 --rounds N --flops K --minutes M --workers W --out data/calib [--tiny]`: enumerates the common heads-up endings from the starting solution, solves them postflop over K weighted flops (worker_threads), writes `realization-rN.json`, re-solves preflop with it (`tools/solve.js` env hooks `SOLVE_TABLE/SOLVE_OUT/SOLVE_TAG/SOLVE_N0`; unset = identical output), and logs gauges to `gauges.jsonl`. Never writes `data/preflop-*.bin`. Tiny run (~3 min): `nice -n 19 taskset -c 8-15 node tools/calib/run.js --tiny --out data/calib`. Flop solves need >= 60 s each to converge (60 s: exploitability 8% of pot, EQR still moving); the solve.js HU exploitability reads negative (rake offset), compare it between rounds only.
+
+## 2026-11-27 Zenith run 2 (branch zenith-run2)
+
+**Gauge v2.** `node tools/score/v2/app-score-v2.js --json out.json` drives the app in phone Chromium and scores 100 points: accuracy 20, speed 10, learning 20 (the frozen v1 gauge, scaled), legibility 20, coaching clarity 15, feature reach 15. v1 vetoes cap the total at 40. Hooks it observes: `data-judgment`, `data-coach`, `data-reward`, `data-feature` (see `tools/score/v2/SCORE.md`). Serialize with `flock /tmp/poker-zenith2-score.lock`. Quick: `--no-v1 --only legibility|coaching|reach`. Freeze v2.1/v2.2 notes and per-category noise bands (MDE) are in SCORE.md; the files in `FROZEN.sha256` are not to be edited. Base runs: `runs/base-*.json`; final: `runs/final.json`. Known weakness (accepted): static review/trainer text can earn some reach points; reach diffs were read by hand.
+
+**Kept.** Chip placement and position-highlight lap (js/app.js, css); 13 px / AA / 44 px legibility audit across every screen; calibration as coaching (`js/calib-coach.js`); drill scaffold and reward moment (`js/drill-coach.js`, `js/reward.js`); spot library, hand review vs solver, leak report, export (`js/library.js`, `review.js`, `report.js`); Lab: custom solve, node-lock, multiway estimate, stack depths (`js/lab*.js`). `sw.js` CACHE v19 and precache list updated.
+
+**Overnight units** (systemd --user, `Nice=19`, pinned by `taskset -c 8-15`; widened to cores 2-15 at ship): `poker-calib` (6-max calibrated preflop, 4 rounds, then 5/4/3 players, out `data/calib/nN`) and `poker-flopdrills` (flop drill spots, out `data/flopdrills/night`). Check, apply and re-score: `tools/score/v2/MORNING.md`. Status: `systemctl --user is-active poker-calib poker-flopdrills`; `tail data/calib/n6/run.log`. `apply.js` gates itself; the HU exploitability gauge is offset by rake (about -98 mbb), compare rounds only.
+
+**Gotchas.** `AllowedCPUs` is not enforced by this user manager; the real pin is `taskset`. Flop solves need 60-150 s each to converge. Scorer module timeout is 150 s.
