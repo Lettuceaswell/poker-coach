@@ -206,7 +206,7 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 
 /* die + recommended action */
 .die { display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 4px; margin-right: 7px; border-radius: 6px;
-  background: #f2f2f2; color: #000; font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; vertical-align: 1px; }
+  background: #f2f2f2; color: #000; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; vertical-align: 1px; }
 .die.anim { animation: roll .45s cubic-bezier(.2,1.5,.4,1); }
 @keyframes roll { 0% { transform: rotate(-90deg) scale(.6); opacity: .2; } 100% { transform: none; opacity: 1; } }
 .coach b.picked { text-decoration: underline; text-underline-offset: 3px; }
@@ -218,7 +218,7 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 .meter-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .meter { position: relative; flex: 0 0 70px; height: 4px; border-radius: 2px; background: #26262a; overflow: hidden; }
 .meter i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--go); transition: width .2s; }
-.meter-text { font-size: 11.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meter-text { font-size: 11.5px; color: var(--dim); white-space: normal; overflow: visible; line-height: 16px; }
 
 /* ===== design pass ===== */
 /* bet chips lean toward the middle of the table */
@@ -408,12 +408,12 @@ body.four .ct.s-2 { color: var(--blue); } body.four .ct.s-3 { color: var(--green
 
 /* calibration */
 .calq { padding: 12px; border-radius: 16px; background: #121215; margin: 10px 0; }
-.dual { position: relative; height: 36px; margin: 8px 0 2px; }
-.dual-track { position: absolute; left: 0; right: 0; top: 15px; height: 6px; border-radius: 3px; background: #2a2a30; }
+.dual { position: relative; height: 48px; margin: 8px 0 2px; }
+.dual-track { position: absolute; left: 0; right: 0; top: 21px; height: 6px; border-radius: 3px; background: #2a2a30; }
 .dual-fill { position: absolute; top: 0; height: 100%; background: #e8e8ea; border-radius: 3px; }
-.dual-truth { position: absolute; top: -9px; width: 3px; height: 24px; margin-left: -1.5px; background: #f5c84a; border-radius: 2px; opacity: 0; transition: opacity .3s; }
+.dual-truth { position: absolute; top: -3px; width: 3px; height: 24px; margin-left: -1.5px; background: #f5c84a; border-radius: 2px; opacity: 0; transition: opacity .3s; }
 .dual-truth.on { opacity: 1; }
-.dual input { position: absolute; left: 0; right: 0; width: 100%; top: 2px; margin: 0; height: 32px; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
+.dual input { position: absolute; left: 0; right: 0; width: 100%; top: 2px; margin: 0; height: 44px; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
 .dual input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
 .dual input::-moz-range-thumb { pointer-events: auto; width: 28px; height: 28px; border-radius: 50%; background: #fff; border: 0; }
 .dual input::-webkit-slider-runnable-track { background: none; }
@@ -558,7 +558,7 @@ body.no-ripple .pos.btn-pos { border-color: #f2f2f2; }
 .pot-row { position: relative; height: 112px; }
 .pot-row .pot { position: absolute; right: 0; top: 0; font-size: 30px; line-height: 36px; height: 40px; }
 .coach-top { display: flex; align-items: center; gap: 6px; padding-right: 108px; height: 44px; }
-.coach-top .ct-txt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.coach-top .ct-txt { min-width: 0; white-space: normal; overflow: visible; line-height: 18px; }
 .coach-top .why-btn { flex: none; }
 .seat { pointer-events: none; }
 .seat > * { pointer-events: auto; }
