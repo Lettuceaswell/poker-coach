@@ -124,3 +124,8 @@ From `.zenith/decisions/2026-11-28-r3-what-validators-caught.md` and this list:
 ## 11. Push status
 
 All keep-rule numbers passed (8 LOG.md tests, threeway-test, postflop-regress, calib-verdict-test, legib-chips, pt-assist-test exit 0; no veto; no category below start by more than its band; trainer 1.67; offline reload in Chromium loaded Drills, Quiz and Lab with 0 network failures and 50 cached files). The final code a80d0d2 plus this closeout went to `main` (7420770), so the phone gets it from main. The remote branch `zenith-run3` still holds the older ship-1 commit 2a9c96f, which is not an ancestor of this history (it was not force-pushed); main is the source of truth.
+
+## Addendum 05:25 (orchestrator, from the terminal review)
+- Calib round 3 (r3n6) finished after this closeout was written. `node tools/calib/apply.js --dir data/calib/r3n6 --round 3 --dry-run`: REFUSED. SB limp 52.69, BTN RFI 41.76 and BB defense 58.84 pass; HU exploitability -87.7 mbb against the -99.2 baseline fails the "must not get worse" check. All three rounds fail on that same check by about 11 mbb, which is near the 1-minute solve noise MORNING.md describes. Worth one look at the sign/tolerance of that check before re-running (ask 1 for the morning). Nothing applied; preflop data unchanged.
+- The remote branch `zenith-run3` still points at ship 1's candidate 2a9c96f (built in a separate worktree). Main (83a9237) has everything, and the local branch matches main. Moving the remote branch needs a force-push, which was not done without you.
+- Still open: 23 of 125 re-solved flops above exploit 3; quiz prompt type reads 0 on the gauge (its crawl never opens a Quiz prompt); run C identity check only partly proven; notes 2/3/5 need a check on your real iPhone.
