@@ -9,7 +9,7 @@ import * as pf from './postflop-coach.js';
 import * as H from './history.js';
 import { preflopDetail, postflopDetail, villainView, storedPreflopGrid, nodeMixes } from './explain.js';
 import { gridHTML } from './grid.js';
-import { coachBlocks, explainText, isExpert } from './calib-coach.js';
+import { coachBlocks, explainText, isExpert, spotNums } from './calib-coach.js';
 import { openDrills } from './drills.js';
 import { installPostflopDrills } from './postflop-drills.js';
 import { openLibrary, openExport } from './library.js';
@@ -1165,12 +1165,12 @@ function handRows(hands) {
 
 // Orbit review: one pivotal spot, two calibration questions, the verdict, then the orbit's hands
 // Pick the orbit's most instructive call decision: big pot and a close price-vs-equity gap.
+const spotScore = (d) => (d.pot || 1) * (0.3 + (d.eq != null ? 1 - Math.min(1, Math.abs(d.eq - d.need) / 0.25) : 0.4));
 function pivotalSpot(hands) {
   let best = null;
   for (const h of hands) h.decisions.forEach((d, i) => {
     if (d.need == null) return;
-    const close = d.eq != null ? 1 - Math.min(1, Math.abs(d.eq - d.need) / 0.25) : 0.4;
-    const score = (d.pot || 1) * (0.3 + close);
+    const score = spotScore(d), close = d.eq != null ? 1 - Math.min(1, Math.abs(d.eq - d.need) / 0.25) : 0.4;
     if (!best || score > best.score) best = { h, d, i, score, close };
   });
   if (!best) return null;
@@ -1191,66 +1191,98 @@ async function openOrbitReview(hands) {
   }
   const h0 = rv.hand != null ? hands.find(h => h.no === rv.hand) : null;
   const d0 = h0 ? h0.decisions[rv.i] : null;
-  const qs = [];
+  // spots of this orbit: the pivotal one first, then the other call decisions by the same score ("Next spot" walks them)
+  const spots = [];
   if (d0) {
-    qs.push({ kind: 'need', truth: d0.need, ask: 'How often did you need to win to make calling break even?' });
-    if (d0.eq != null) qs.push({ kind: 'eq', truth: d0.eq, ask: `How often does your hand win against their range${d0.street === 'preflop' ? ' (all-in equity, before position effects)' : ''}?` });
+    spots.push({ h: h0, d: d0, i: rv.i, reason: rv.reason, answers: rv.answers });
+    const rest = [];
+    for (const h of hands) h.decisions.forEach((d, i) => { if (d.need != null && !(h === h0 && i === rv.i)) rest.push({ h, d, i, score: spotScore(d) }); });
+    rest.sort((x, y) => y.score - x.score);
+    for (const sp of rest.slice(0, 5)) { const key = `${sp.h.no}:${sp.i}`; spots.push({ ...sp, reason: 'Another call decision from this orbit', answers: ((rv.more ||= {})[key] ||= {}) }); }
+    // a short orbit (as few as one hand) tops up with real call decisions from your recent hands that no review has asked about yet
+    if (spots.length < 4) {
+      const asked = new Set(Object.values(reviews).flatMap(r => [r.hand != null ? `${r.hand}:${r.i}` : '', ...Object.keys(r.more || {})]));
+      const older = [];
+      for (const h of H.history.hands.slice(-40)) if (h.orbit !== orbit) h.decisions.forEach((d, i) => { if (d.need != null && !asked.has(`${h.no}:${i}`)) older.push({ h, d, i, score: spotScore(d) }); });
+      older.sort((x, y) => y.score - x.score);
+      for (const sp of older.slice(0, 4 - spots.length)) spots.push({ ...sp, reason: `Another call decision, from orbit ${sp.h.orbit}`, answers: ((rv.more ||= {})[`${sp.h.no}:${sp.i}`] ||= {}) });
+    }
   }
-  const c = H.history.calib;
-  const calibLine = c.n ? `Your 90% ranges have caught the truth ${c.hits} of ${c.n} times (${Math.round(100 * c.hits / c.n)}%), average width ${Math.round(c.width / c.n)} points. Aim for 9 in 10 with ranges as narrow as you can.`
-    : 'For each question, set a low and high number you are 90% sure the truth falls between. Over time, aim to be right 9 in 10 times with ranges as narrow as you can.';
+  let cur = 0;
+  const qsFor = (sp) => {
+    const d = sp.d, n = spotNums(d), out = [];
+    const numsTxt = `Pot ${n.pot} BB, call ${n.call} BB.`;
+    out.push({ kind: 'need', truth: d.need, ask: `${numsTxt} How often did you need to win to make calling break even?` });
+    if (d.eq != null) out.push({ kind: 'eq', truth: d.eq, ask: `${numsTxt} How often does your hand win against their range${d.street === 'preflop' ? ' (all-in equity, before position effects)' : ''}?` });
+    return out;
+  };
+  const c0 = () => H.history.calib;
+  const calibLine = () => { const c = c0(); return c.n ? `Your 90% ranges have caught the truth ${c.hits} of ${c.n} times (${Math.round(100 * c.hits / c.n)}%), average width ${Math.round(c.width / c.n)} points. Aim for 9 in 10 with ranges as narrow as you can.`
+    : 'For each question, set a low and high number you are 90% sure the truth falls between. Over time, aim to be right 9 in 10 times with ranges as narrow as you can.'; };
   const chosen = (d) => d.chosen === 'f' ? 'fold' : d.chosen === 'r' ? 'raise' : d.facing ? 'call' : 'check';
-  const spotHTML = d0 ? `<div class="spot">
-      <p class="small up-dim">${rv.reason}</p>
-      <p class="spot-line"><b>${d0.street[0].toUpperCase() + d0.street.slice(1)}</b> · ${h0.pos} · ${cardsTxt(h0.cards)}${d0.board && d0.board.length ? ' · board ' + cardsTxt(d0.board) : ''}</p>
-      <p class="small dim">${d0.facingText || ''}</p></div>` : '';
-  const qHTML = qs.map((q, k) => {
-    const a = rv.answers[q.kind];
-    const lo = a ? a.lo : 20, hi = a ? a.hi : 45;
-    return `<div class="calq" data-k="${k}" data-judgment="calibration"><p>${q.ask}</p>${coachBlocks(q, d0, isExpert(H.history.calib))}
-      <div class="dual"><div class="dual-track"><i class="dual-fill"></i><i class="dual-truth${a ? ' on' : ''}" style="left:${a ? a.truth : 0}%"></i></div>
-        <input type="range" min="0" max="100" value="${lo}" class="lo"${a ? ' disabled' : ''}><input type="range" min="0" max="100" value="${hi}" class="hi"${a ? ' disabled' : ''}></div>
-      <div class="calrow"><span class="calval">${lo}% – ${hi}%</span><button class="btn small-btn reveal"${a ? ' disabled' : ''}>Reveal</button></div>
-      <p class="calres small">${a ? resultText(a, q) : ''}</p><p class="small" data-coach="explain">${a ? explainText(q, d0, a) : ''}</p></div>`;
-  }).join('');
-  function resultText(a) { return `${a.hit ? '<b class="up">Inside your range.</b>' : '<b class="down">Outside your range.</b>'} The answer was ${a.truth}%.`; }
-  function verdictHTML() {
-    const n = rv.answers.need, e = rv.answers.eq;
-    if (!d0 || !n || (qs.length > 1 && !e)) return '';
-    const grade = `The coach graded your ${chosen(d0)} <span class="grade ${d0.gcls}">${d0.grade}</span>.`;
+  const resultText = (a) => `${a.hit ? '<b class="up">Inside your range.</b>' : '<b class="down">Outside your range.</b>'} The answer was ${a.truth}%.`;
+  function verdictHTML(sp) {
+    const qs = qsFor(sp), n = sp.answers.need, e = sp.answers.eq, d = sp.d;
+    if (!n || (qs.length > 1 && !e)) return '';
+    const grade = `The coach graded your ${chosen(d)} <span class="grade ${d.gcls}">${d.grade}</span>.`;
     if (!e) return `<p class="verdict">${grade}</p>`;
     const gap = e.truth - n.truth;
     const side = gap >= 0 ? `calling had the edge by ${gap} points` : `folding had the edge by ${-gap} points`;
-    return `<p class="verdict">You needed ${n.truth}% and had ${e.truth}%: on price alone ${side}${d0.street === 'preflop' ? ' (position after the flop shifts this a little)' : ''}. Rule: call when your win share beats the price, ${e.truth}% vs ${n.truth}%. ${grade}</p>`;
+    return `<p class="verdict">You needed ${n.truth}% and had ${e.truth}%: on price alone ${side}${d.street === 'preflop' ? ' (position after the flop shifts this a little)' : ''}. Rule: call when your win share beats the price, ${e.truth}% vs ${n.truth}%. ${grade}</p>`;
   }
-  const html = `${qs.length ? `<section><h4>Calibration · 90% ranges</h4><p class="small dim">${calibLine}</p>${spotHTML}${qHTML}<div class="verdict-box">${verdictHTML()}</div>
-      <button class="btn wide spot-replay" data-hand="${h0.no}">Replay this hand</button></section>` : ''}
+  function calInner() {
+    const sp = spots[cur], d = sp.d, qs = qsFor(sp);
+    const spotHTML = `<div class="spot">
+      <p class="small up-dim">${sp.reason}${spots.length > 1 ? ` · spot ${cur + 1} of ${spots.length}` : ''}</p>
+      <p class="spot-line"><b>${d.street[0].toUpperCase() + d.street.slice(1)}</b> · ${sp.h.pos} · ${cardsTxt(sp.h.cards)}${d.board && d.board.length ? ' · board ' + cardsTxt(d.board) : ''}</p>
+      <p class="small dim">${d.facingText || ''}</p></div>`;
+    // one question at a time: the equity question appears once the price question is answered
+    const firstOpen = qs.findIndex(q => !sp.answers[q.kind]);
+    const qHTML = qs.map((q, k) => ({ q, k })).filter(({ k }) => firstOpen < 0 || k <= firstOpen).map(({ q, k }) => {
+      const a = sp.answers[q.kind];
+      const lo = a ? a.lo : 20, hi = a ? a.hi : 45;
+      // an answered question is no longer an open prompt: it carries no data-judgment, only its result and explanation
+      return `<div class="calq${a ? ' answered' : ''}" data-k="${k}"${a ? '' : ' data-judgment="calibration"'}><p>${q.ask}</p>${coachBlocks(q, d, isExpert(H.history.calib))}
+      <div class="dual"><div class="dual-track"><i class="dual-fill"></i><i class="dual-truth${a ? ' on' : ''}" style="left:${a ? a.truth : 0}%"></i></div>
+        <input type="range" min="0" max="100" value="${lo}" class="lo"${a ? ' disabled' : ''}><input type="range" min="0" max="100" value="${hi}" class="hi"${a ? ' disabled' : ''}></div>
+      <div class="calrow"><span class="calval">${lo}% – ${hi}%</span><button class="btn small-btn reveal"${a ? ' disabled' : ''}>Reveal</button></div>
+      <p class="calres small">${a ? resultText(a) : ''}</p><p class="small" data-coach="explain">${a ? explainText(q, d, a) : ''}</p></div>`;
+    }).join('');
+    return `<h4>Calibration · 90% ranges</h4><p class="small dim calib-line">${calibLine()}</p>${spotHTML}${qHTML}<div class="verdict-box">${verdictHTML(sp)}</div>
+      <button class="btn wide spot-replay" data-hand="${sp.h.no}">Replay this hand</button>
+      ${spots.length > 1 ? `<button class="btn wide next-spot">Next spot · ${(cur + 1) % spots.length + 1} of ${spots.length}</button>` : ''}`;
+  }
+  const html = `${d0 ? `<section class="cal-sec">${calInner()}</section>` : ''}
     <section><h4>Orbit ${orbit}, strongest hand first</h4><div class="hrows">${handRows(ranked)}</div></section>`;
   const done = openPanel(`Orbit ${orbit}`, html, `<span class="${net >= 0 ? 'up' : 'down'}">${bbTxt(net)} BB</span>`);
   const view = panelView();
-  view.querySelectorAll('.calq').forEach(el => {
-    const lo = el.querySelector('.lo'), hi = el.querySelector('.hi');
-    const sync = () => {
-      if (+lo.value > +hi.value) [lo.value, hi.value] = [hi.value, lo.value];
-      el.querySelector('.calval').textContent = `${lo.value}% – ${hi.value}%`;
-      const f = el.querySelector('.dual-fill'); f.style.left = lo.value + '%'; f.style.width = (hi.value - lo.value) + '%';
-    };
-    const ht = el.querySelector('[data-coach="hint-toggle"]'), hb = el.querySelector('[data-coach="hint"]');
-    ht.addEventListener('click', () => { hb.hidden = !hb.hidden; });
-    lo.addEventListener('input', sync); hi.addEventListener('input', sync); sync();
-    el.querySelector('.reveal').addEventListener('click', (ev) => {
-      const q = qs[+el.dataset.k];
-      const truth = Math.round(q.truth * 100);
-      const hit = H.recordCalibration(+lo.value, +hi.value, truth);
-      const a = rv.answers[q.kind] = { lo: +lo.value, hi: +hi.value, truth, hit };
-      H.save();
-      const t = el.querySelector('.dual-truth'); t.style.left = truth + '%'; t.classList.add('on');
-      el.querySelector('.calres').innerHTML = resultText(a);
-      el.querySelector('[data-coach="explain"]').textContent = explainText(q, d0, a);
-      ev.target.disabled = true; lo.disabled = true; hi.disabled = true;
-      view.querySelector('.verdict-box').innerHTML = verdictHTML();
+  function wire() {
+    const sp = spots[cur], qs = qsFor(sp);
+    view.querySelectorAll('.calq').forEach(el => {
+      const lo = el.querySelector('.lo'), hi = el.querySelector('.hi');
+      const sync = () => {
+        if (+lo.value > +hi.value) [lo.value, hi.value] = [hi.value, lo.value];
+        el.querySelector('.calval').textContent = `${lo.value}% – ${hi.value}%`;
+        const f = el.querySelector('.dual-fill'); f.style.left = lo.value + '%'; f.style.width = (hi.value - lo.value) + '%';
+      };
+      const ht = el.querySelector('[data-coach="hint-toggle"]'), hb = el.querySelector('[data-coach="hint"]');
+      ht.addEventListener('click', () => { hb.hidden = !hb.hidden; });
+      lo.addEventListener('input', sync); hi.addEventListener('input', sync); sync();
+      el.querySelector('.reveal').addEventListener('click', (ev) => {
+        const q = qs[+el.dataset.k];
+        const truth = Math.round(q.truth * 100);
+        const hit = H.recordCalibration(+lo.value, +hi.value, truth);
+        const a = sp.answers[q.kind] = { lo: +lo.value, hi: +hi.value, truth, hit };
+        H.save();
+        const t = el.querySelector('.dual-truth'); t.style.left = truth + '%'; t.classList.add('on');
+        // the answered card is rebuilt without data-judgment (retired, not an open prompt) and the next question, if any, appears
+        view.querySelector('.cal-sec').innerHTML = calInner(); wire();
+      });
     });
-  });
+    const nx = view.querySelector('.next-spot');
+    if (nx) nx.addEventListener('click', () => { cur = (cur + 1) % spots.length; view.querySelector('.cal-sec').innerHTML = calInner(); wire(); });
+  }
+  if (d0) wire();
   return done;
 }
 

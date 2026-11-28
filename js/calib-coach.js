@@ -10,6 +10,8 @@ function nums(d) {
   return { pot: f1(pot), call, total: f1(pot + call), street: d.street, boardN: (d.board || []).length };
 }
 
+export const spotNums = nums;
+
 function mix(d) {
   const m = (d.mix || []).slice().sort((a, b) => b.freq - a.freq)[0];
   return m ? `${m.label} ${Math.round(m.freq * 100)}%` : '';
@@ -27,7 +29,7 @@ export function coachBlocks(q, d, expert) {
   } else {
     const flop = n.street === 'flop', pre = n.street === 'preflop';
     def = 'The share of the time your hand wins by the river against the range they would bet or raise with here, counting ties as half.';
-    inputs = `Your hand and the board are in the spot above. Pot before your call: ${n.pot} BB.`;
+    inputs = `Pot before your call: ${n.pot} BB. The call amount: ${n.call} BB. Your hand and the board are in the spot above.`;
     steps = pre ? 'Preflop rule of thumb: a pair vs two overcards is about 55 / 45; vs a tight range expect to be an underdog by 10 to 15 points.'
       : 'Outs x 2 per card to come, x 4 on the flop if all-in.';
     example = pre ? 'Pair vs two overcards: about 55%; vs a tight range 45 / 55 is common.' : '9 outs on the flop: 9 x 4 = 36%; on the turn: 9 x 2 = 18%.';
@@ -47,5 +49,5 @@ export function explainText(q, d, a) {
   const n = nums(d), pick = mix(d);
   const lead = pick ? `Coach pick: ${pick}. ` : '';
   if (q.kind === 'need') return `${lead}How it was computed: ${n.call} / (${n.pot} + ${n.call}) = ${n.call} / ${n.total} = ${a.truth}%. You set ${a.lo}% to ${a.hi}%.`;
-  return `${lead}How it was computed: a solver-grade enumeration of your hand against their range, ties as half, gave ${a.truth}%. Compared with the ${f1(d.need * 100)}% price (${n.call} / ${n.total}), that is ${a.truth >= Math.round(d.need * 100) ? 'enough' : 'not enough'} to call. You set ${a.lo}% to ${a.hi}%.`;
+  return `${lead}How it was computed: a solver-grade enumeration of your hand against their range, ties as half, gave ${a.truth}%. The pot was ${n.pot} BB and the call ${n.call} BB, so the price is ${n.call} / ${n.total} = ${f1(d.need * 100)}%; ${a.truth}% against ${f1(d.need * 100)}% is ${a.truth >= Math.round(d.need * 100) ? 'enough' : 'not enough'} to call. You set ${a.lo}% to ${a.hi}%.`;
 }
