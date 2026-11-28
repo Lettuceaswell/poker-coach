@@ -106,7 +106,8 @@ export function judge(d, eqPct, needPct) {
       verdict = `On price alone folding has the edge by ${pt(-gap)}, yet the coach ${cont} (${dirTxt}): ${rs.join('; ')}. The coach can give up roughly ${pt(allow)} of raw equity for those reasons${-gap > allow ? `, so ${pt(-gap - allow)} more has to come from the solver's full range, not from this number alone` : ''}.`;
       explain = `That is ${pt(-gap)} under the price, yet the coach ${cont}: ${rs.join('; ')}. It can give up roughly ${pt(allow)} of raw equity for that.`;
     }
-    rule = `${word} when you act last, close the action or hold a hand that makes big pots, even a few points under the price (roughly ${pt(allow)} here); ${word} when you clear the price by a margin otherwise.`;
+    rule = gap >= 0 ? `${word} when your win share clears the price with a cushion of roughly ${pt(margin)} (${eqPct} percent vs ${needPct} percent here), or when position and hand type make up the difference.`
+      : `${word} when you act last, close the action or hold a hand that makes big pots, even a few points under the price (roughly ${pt(allow)} here); ${word} when you clear the price by a margin otherwise.`;
   }
   return { dir, word, gap, margin, verdict, explain, rule, type };
 }
