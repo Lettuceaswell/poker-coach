@@ -28,7 +28,8 @@ for (let step = 0; step < 6; step++) {
   const after = await p.evaluate(() => { const c = [...document.querySelectorAll('.calq.answered')].pop(); return { explain: c.querySelector('[data-coach=explain]').innerText, res: c.querySelector('.calres').innerText, judgment_attr: c.hasAttribute('data-judgment'), open_judgments: document.querySelectorAll('[data-judgment]').length, continue_btn: document.querySelector('.next-q, .next-spot')?.innerText }; });
   const cal1 = await p.evaluate(() => JSON.parse(localStorage.getItem('poker-coach-history-v1')).calib.n);
   reps.push({ rep: reps.length + 1, before, hintShown, after, calib_n: [cal0, cal1] });
-  const nx = await p.$('.next-q') || await p.$('.next-spot'); if (!nx) break; await nx.click(); await sleep(150);
+  if (await p.$('.calq[data-judgment]')) continue;
+  const nx = await p.$('.next-spot'); if (!nx) break; await nx.click(); await sleep(150);
 }
 console.log(JSON.stringify(reps, null, 1)); if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(reps, null, 1));
 await br.close(); srv.close();
