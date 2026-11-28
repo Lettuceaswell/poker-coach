@@ -125,3 +125,6 @@ Spec text above ("up to 160 taps") is superseded by item 2.
 
 `--no-v1` runs on a 31a9280 copy (wall 55-56 s each; coaching module ~58 s alone, under the 70 s limit). accuracy/speed/learning keep their frozen v1 baselines above. Legibility rises 10.32 -> 10.82 only because the result screen is now sampled (base app, no app change). Accepted candidate fe72626 legibility under v2.1 (quick): 12.32 (chip 3.96, position 3.75, font 0.34, contrast 1.40, tap 0.49, clip 2.39), +1.50 over the v2.1 base.
 Self-check (coaching, calibration scaffold copy of base, quick): honest scaffold (definition/inputs/method/hint/explain with true value + inputs) 1.57; explain removed 1.35; generic fixed-text explain 1.35; base 0. Not proven (time): a full drill prompt copy and reward-after-hard-correct vs after-every-answer copies.
+
+## v2.2 timeout change (orchestrator decision, 2026-11-27 18:13)
+Browser module timeout raised 70 s -> 150 s in `app-score-v2.js`. Reason: once drill prompts carry the coaching hooks, the coaching module drives more answers and hint probes and needs ~86 s under load, so honest implementations timed out and scored 0. Nothing measured changed; base app still scores coaching 0 / reach 0 (no hooks). Full run wall may exceed 240 s under load; recorded here as the accepted cost.

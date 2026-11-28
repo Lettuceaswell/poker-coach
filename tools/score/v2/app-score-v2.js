@@ -63,7 +63,7 @@ async function mod(name, cat) {
   if (!fs.existsSync(f)) { cats[cat] = { points: 0, max: MAX[cat], subs: [], observed: { missing: name + '.js not present: 0' } }; return; }
   let to; try {
     const m = await import(pathToFileURL(f).href);
-    const res = await Promise.race([m.run({ root: ROOT, seed: SEED }), new Promise((_, rej) => { to = setTimeout(() => rej(new Error('module timeout 70 s')), 70000); })]);
+    const res = await Promise.race([m.run({ root: ROOT, seed: SEED }), new Promise((_, rej) => { to = setTimeout(() => rej(new Error('module timeout 150 s')), 150000); })]);
     cats[cat] = { points: r2(res.points), max: MAX[cat], subs: Array.isArray(res.subs) ? res.subs : subsList(res.subs), observed: res.notes || res.observed || {}, wall_s: r2((performance.now() - t) / 1000) };
   } catch (e) { cats[cat] = { points: 0, max: MAX[cat], subs: [], observed: { error: String(e?.stack || e).slice(0, 400) } }; } finally { clearTimeout(to); }
 }
