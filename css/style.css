@@ -537,6 +537,13 @@ small { font-size: 13px !important; }
 /* drills: leak label, difficulty line, progress line (run 3) */
 .drill-leak { text-align: center; margin: -6px 0 6px !important; color: #f2f2f2; font-weight: 600; }
 .drill-why { text-align: center; margin: 0 0 10px !important; }
+.progress-line { margin: 8px 0; padding: 6px 12px; border-left: 3px solid #8a8a8a; background: rgba(255, 255, 255, .05); border-radius: 8px; font-size: 14px; color: #f2f2f2; }
+
+/* settings: Turn-order highlight off = no ripple, glow or pulse anywhere; the dealer button stays (solid light) */
+body.no-ripple .pos, body.no-ripple .pos.btn-pos, body.no-ripple .hero-box.turn { animation: none !important; box-shadow: none; }
+body.no-ripple .pos.btn-pos { border-color: #f2f2f2; }
+.quick button.last:not(.on) { border-style: dashed; }
+
 /* note 3: two face-down backs per opponent still in the hand; placed by placeTable() from real rects */
 .opp-backs { position: absolute; left: 0; top: 0; display: flex; gap: 2px; z-index: 2; pointer-events: none; }
 .opp-backs .card { width: 22px; height: 31px; border-radius: 5px; box-shadow: 0 1px 6px rgba(0, 0, 0, .6); }

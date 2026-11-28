@@ -26,7 +26,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 // ---------- saved state ----------
 const KEY = 'poker-coach-v1';
 const saved = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })();
-const settings = { unit: 'bb', fourColor: false, seats: 6, speed: 'normal', felt: 'black', stacks: 'topup', coach: 'always', orbitReview: true, calibration: true, ...saved.settings };
+const settings = { unit: 'bb', fourColor: false, seats: 6, speed: 'normal', felt: 'black', stacks: 'topup', coach: 'always', orbitReview: true, calibration: true, ripple: true, ...saved.settings };
 // v2: stacks carry over with an auto top-up to 100 BB (the old 'reset' default hid every win)
 if ((saved.version || 1) < 2) settings.stacks = 'topup';
 const session = { hands: 0, net: 0, buyins: 1, pfN: 0, pfGood: 0, ...saved.session };
@@ -111,6 +111,7 @@ let acting = -1;
 
 function applySettings() {
   document.body.classList.toggle('four', settings.fourColor);
+  document.body.classList.toggle('no-ripple', settings.ripple === false);
   document.body.classList.remove('felt-green', 'felt-navy');
   if (settings.felt !== 'black') document.body.classList.add('felt-' + settings.felt);
   $('unitBtn').textContent = settings.unit === 'bb' ? 'BB' : 'Chips';
@@ -132,6 +133,14 @@ function winnersSet() {
   for (const w of r.winners) if (!r.showdown || w.score === best) m.set(w.seat, w);
   return m;
 }
+
+// what each seat took from the pot: every winner of every pot (split shares and side pots included)
+function payouts() {
+  const m = new Map();
+  for (const w of game.result?.winners || []) if (w.amount > 0) m.set(w.seat, (m.get(w.seat) || 0) + w.amount);
+  return m;
+}
+const wonLabel = (c) => `+${num(c)}${settings.unit === 'bb' ? ' BB' : ''}`;
 
 // ---------- position ripple ----------
 // A white light starts at the button and runs clockwise around every seat (yours
@@ -176,7 +185,7 @@ function applySweep() {
   for (const [i, el] of els) {
     if (!el || !el.animate) continue;
     el.getAnimations().forEach(a => { if (a.id === 'sweep') a.cancel(); });
-    if (calm || !sweepOrder.has(i) || t >= sweepTotal()) continue;
+    if (calm || settings.ripple === false || !sweepOrder.has(i) || t >= sweepTotal()) continue;
     const a = el.animate(sweepKeyframes(i), { duration: lapMs(), iterations: sweepLaps, id: 'sweep', easing: 'linear' });
     a.currentTime = t;
   }
@@ -239,6 +248,7 @@ function render() {
   const order = opps.map(i => (i - heroI + ps.length) % ps.length).sort((a, b) => a - b).map(k => (k + heroI) % ps.length);
   const spots = SPOTS[order.length] || SPOTS[5];
   const wins = winnersSet();
+  const pays = game.handOver ? payouts() : new Map();
   const pos = game.positions();
   winCards = winningCards(wins);
 
@@ -251,7 +261,8 @@ function render() {
     const label = p.last && !game.handOver ? `<span class="nm last-${p.last.toLowerCase()}" style="color:${p.last === 'Fold' ? '#c8c8cc' : p.last === 'Check' || p.last === 'Call' ? '#d0d0d4' : '#ffb4a8'}">${p.last}</span>` : `<span class="nm">${p.name}</span>`;
     const mini = showCards ? `<div class="mini">${p.cards.map(c => cardHTML(c, winCards.has(c) ? 'hilite' : '')).join('')}</div>`
       : !p.folded && !p.out ? '<div class="opp-backs"><div class="card back"></div><div class="card back"></div></div>' : '';
-    const below = w ? `<span class="bet-chip won">+${num(w.amount)}</span>` : `<span class="bet-chip">${p.bet ? num(p.bet) : ''}</span>`;
+    const paid = pays.get(i);
+    const below = paid ? `<span class="bet-chip won">${wonLabel(paid)}</span>` : `<span class="bet-chip">${p.bet ? num(p.bet) : ''}</span>`;
     const dx = Math.round(Math.sign(50 - x) * Math.min(26, Math.abs(50 - x) * 0.7));
     return `<div class="${cls}" id="seat-${i}" style="left:${x}%;top:${y}%;--dx:${dx}px">
       <div class="ava-wrap"><div class="pos ${pos[i] === 'BTN' ? 'btn-pos' : ''}">${pos[i]}</div>
@@ -284,12 +295,15 @@ function render() {
   } else if (coachHTML()) {
     $('status').innerHTML = coachHTML();
   } else {
-    $('status').textContent = game.street ? game.street[0].toUpperCase() + game.street.slice(1) : '';
+    const st = game.street ? game.street[0].toUpperCase() + game.street.slice(1) : '';
+    $('status').textContent = heroTurn && settings.coach !== 'always' && lastSizeLabel ? `${st} · dashed size = your last size here` : st;
   }
 
   // hero
   const h = hero();
-  $('heroBet').textContent = h.bet ? num(h.bet) : '';
+  const heroPaid = pays.get(heroI);
+  $('heroBet').textContent = heroPaid ? wonLabel(heroPaid) : h.bet ? num(h.bet) : '';
+  $('heroBet').classList.toggle('won', !!heroPaid);
   $('heroPos').textContent = pos[heroI];
   $('heroPos').className = 'pos hero-pos' + (pos[heroI] === 'BTN' ? ' btn-pos' : '');
   $('heroBox').classList.toggle('turn', heroTurn);
@@ -372,6 +386,7 @@ let pre = null;
 let preCall = 0;
 let selTo = 0;        // raise size picked for this decision
 let selLabel = '';
+let lastSizeLabel = ''; // the chip the decision opened on (his last size for this spot); marked, never changed by a solve
 
 const clampTo = (L, to) => Math.max(L.minTo, Math.min(L.maxTo, Math.round(to / SB) * SB));
 
@@ -416,11 +431,13 @@ function pickDefault(L) {
   if (settings.coach === 'always' && r && r.to && (r.freq >= 0.2 || cs.pick === r)) {
     const best = list.reduce((b, x) => (Math.abs(x[1] - r.to * BB) < Math.abs(b[1] - r.to * BB) ? x : b));
     selLabel = best[0]; selTo = best[1];
+    lastSizeLabel = '';
     return;
   }
   const want = settings.pref?.[spot(L)] ?? PREF_DEFAULT[spot(L)];
   const hit = list.find(([l]) => l === want) || list.find(([l]) => l === PREF_DEFAULT[spot(L)]) || list[0];
   selLabel = hit[0]; selTo = hit[1];
+  lastSizeLabel = hit[0];
 }
 
 function choose(label, to) {
@@ -437,7 +454,7 @@ function renderQuick() {
   if (!heroTurn || game.handOver) { el.innerHTML = ''; return; }
   const L = game.legal();
   if (!L.canRaise) { el.innerHTML = ''; return; }
-  el.innerHTML = sizes(L).map(([l, to]) => `<button class="${to === selTo ? 'on' : ''}" data-l="${l}" data-to="${to}">${l}</button>`).join('');
+  el.innerHTML = sizes(L).map(([l, to]) => `<button class="${to === selTo ? 'on' : ''}${settings.coach !== 'always' && l === lastSizeLabel ? ' last' : ''}" ${settings.coach !== 'always' && l === lastSizeLabel ? 'title="your last size here" ' : ''}data-l="${l}" data-to="${to}">${l}</button>`).join('');
   const on = el.querySelector('.on');
   if (on) el.scrollTop = 0;
 }
@@ -585,7 +602,7 @@ $('unitBtn').addEventListener('click', () => { settings.unit = settings.unit ===
 document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   const k = seg.dataset.key; let v = b.dataset.v;
-  if (k === 'fourColor' || k === 'orbitReview' || k === 'calibration') v = v === 'true';
+  if (k === 'fourColor' || k === 'orbitReview' || k === 'calibration' || k === 'ripple') v = v === 'true';
   if (k === 'seats') v = +v;
   settings[k] = v;
   applySettings(); render(); save();
@@ -1021,7 +1038,8 @@ pf.setUpdateHandler((m, cur) => {
   refreshCoach();
 });
 function refreshCoach() {
-  if (!heroTurn) return;
+  // coach not on 'always': a solve landing must change nothing on the table (no timing tell, note 6)
+  if (!heroTurn || settings.coach !== 'always') return;
   $('status').innerHTML = coachHTML();
   const key = cs?.pick ? cs.pick.t + ':' + (cs.pick.to || '') : '';
   if (key !== lastPickKey) {
