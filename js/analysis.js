@@ -7,8 +7,10 @@
 // Considered from GTO Wizard / PioSolver / Flopzilla style analysis views:
 //  built: range grid with hand marked + rank, solver range reveal, hand history with replay, opponent
 //  ranges, board texture + draws + who it favors, pot odds + equity, leaks in BB, session stats.
-//  not built tonight: EV table per action (already in the Coach panel), strategy by hand-category
-//  breakdown (tiers, in the Coach panel), node-lock and multiway views (Tools links to Lab/Library).
+//  not built tonight: an EV-per-action table (the Coach panel has NO such table: it shows the solver mix
+//  per action in percent, where the hand sits in the range, and on postflop streets the mix by fifth of
+//  the range; EV in BB appears only in drill review panels and hand review), a strategy-by-hand-category
+//  breakdown, node-lock and multiway views (Tools links to Lab/Library).
 import { handClass, className } from './coach.js';
 import { EQ_VS_RANDOM } from './strength.js';
 import { gridHTML } from './grid.js';

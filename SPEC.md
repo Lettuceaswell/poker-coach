@@ -67,3 +67,17 @@ Rejected: none by the orchestrator as a feature. Gauge-side: static review/train
 - Quiz-style prompts: yes.
 - Three-player solve and per-street node-lock: Claude decides what is feasible. Decision: a real 3-player river solve (CFR over three ranges, labeled "no guarantee" and checked by locking two players and best-responding the third), plus per-street node-lock. Flop/turn three-way stays an estimate for now: the tree is too big for the phone.
 - iPhone test: not now, soon.
+
+## Zenith run 3, 2026-11-28
+
+Judged by gauge v2 (`tools/score/v2`, noise bands in SCORE.md). Start re-score of 6ef7808: 73.51. Each kept learning change with its research; "speculative" marks thin evidence for this use.
+- **Assisted decisions stay out of his record** (a pick made after the solver's answer was visible is flagged and not graded, not counted in leaks or progress). Generation effect: answers you produce yourself are remembered better than answers you read (Slamecka & Graf 1978); immediate feedback only helps when the attempt was real (Hattie & Timperley 2007). Applying it to a poker record is speculative.
+- **Leak plan and adaptive difficulty (`js/skill.js`)**: drills aim at the leaks priced highest in BB; a Bayesian skill estimate with a shrinkage prior sets the target difficulty, and misses ease it off for a few items. Deliberate practice aimed at specific weaknesses with feedback (Ericsson, Krampe & Tesch-Romer 1993); desirable difficulty (Bjork 1994); a success rate near 85 percent maximises learning speed in simple learning models (Wilson et al. 2019, speculative for poker spots); shrinkage toward a prior for few observations (Efron & Morris 1977).
+- **Quiz prompt type, five kinds, with a cross-day schedule (`js/quiz.js`, `js/schedule.js`, steps 1/3/7/16 days)**: retrieval practice beats rereading (Roediger & Karpicke 2006); spaced repetition with growing gaps (Cepeda et al. 2006). Step sizes are a design choice, speculative. Only DUE quiz reviews (missed this session, or due from an earlier day) are interleaved into Drills; new quiz practice is in the Quiz menu. Interleaving mixed problem types helps discrimination (Rohrer & Taylor 2007).
+- **Calibration verdict that follows the coach's pick and teaches the margin**: calibration training with specific feedback on confidence (Lichtenstein, Fischhoff & Phillips 1982); worked examples then fading (Sweller 1988; Renkl & Atkinson 2003).
+- **"+X BB at every winner", grade chips, reward moment**: reward prediction error as the signal behind variable reward (Schultz, Dayan & Montague 1997). Whether it deepens learning here is speculative.
+- **Legibility and table layout (chips placed from real rects, two card backs, faded folds, 13 px text, 44 px taps)**: cognitive load reasoning (Sweller 1988), speculative as a learning effect.
+- **Three-player river solver (`js/postflop/solver3.js`) and per-street node-lock**: CFR+ (Zinkevich et al. 2007; Tammelin 2014). With three players an equilibrium is not guaranteed to be unique or safe (Risk & Szafron 2010), so the screen says "No guarantee" and prices the result with a best-response check.
+- **Flop drills**: 306 re-solved spots merged (1047 total); a spot is kept only when its solve exploitability is <= 3 percent of the pot.
+
+Incomplete or not shipped: calibrated preflop (rounds 1 and 2 refused by the gate, round 3 pending the morning gate); full v2 history and unsealed validators are listed in tools/score/v3-CLOSEOUT.md.

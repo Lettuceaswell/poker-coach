@@ -25,7 +25,7 @@ Ranked by leverage. The goal: answers you can trust like GTO Wizard's, computed 
 
 ## Status 2026-11-28 (Zenith run 3, ship 1 = CACHE v20)
 - Playtest notes (PLAYTEST.md): 1 built (run C identity check not fully proven), 2 built, 3 built, 4 built, 5 built, 6 built, 7 built (Analysis, 8 tabs), 8 built, 9 built, 10 built. Open: confirm 2/3/5 on the real iPhone (430x932, safe-area insets).
-- Calibrated preflop: r3n6 round 2 MCCFR running, apply gate not yet run. Flop re-solve finished (306 spots, not merged).
+- Calibrated preflop: r3n6 rounds 1 and 2 REFUSED by apply.js (numbers in tools/score/v3-calib.md); round 3 MCCFR finishes ~05:11, gate it in the morning (`node tools/calib/apply.js --dir data/calib/r3n6 --round 3`). Flop re-solve night300 MERGED: 125 jobs, 102 solved with exploit <= 3, 23 still skipped (min exploit 3.02), 0 unfinished; 306 spots merged, 1047 spots total (891 flopdrills).
 - Three-player river solver built (js/postflop/solver3.js), not yet in the app.
 
 ## Next steps after Zenith run 2
