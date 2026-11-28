@@ -14,14 +14,19 @@ const CHIPS = src.slice(a + 'const CHIPS = '.length, b + 2);
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const HANDS = +arg('--hands', 8), root = path.resolve(arg('--root', path.join(here, '..'))), shotsDir = arg('--shots', path.join(here, '../shots/w-pt-table')), jsonOut = arg('--json', '');
 const SEATS = arg('--seats', '3,4,5,6').split(',').map(Number), ONLY = arg('--only', 'chips,backs,mix').split(','), tag = arg('--tag', '');
-export const SIZES = [{ width: 430, height: 932, dsf: 3 }, { width: 390, height: 844, dsf: 1 }, { width: 360, height: 740, dsf: 1 }];
+// sat/sab = the iOS safe-area insets the real phone applies through env(safe-area-inset-*) (Chromium has none): his 390x844 playtest screenshot
+// has a 47 px status bar, which is what shrinks #seats until a side seat's chip reaches the board. --insets 0 turns the emulation off.
+export const SIZES = [{ width: 430, height: 932, dsf: 3, sat: 59, sab: 34 }, { width: 390, height: 844, dsf: 1, sat: 47, sab: 34 }, { width: 360, height: 740, dsf: 1, sat: 24, sab: 16 }];
+const INSETS = arg('--insets', '1') !== '0';
 fs.mkdirSync(shotsDir, { recursive: true });
 const srv = await startServer(root), browser = await launch();
 
 async function page(vp, seed, settings) {
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.dsf, isMobile: true, hasTouch: true });
   await ctx.addInitScript(seedScript(seed)); await ctx.addInitScript(settingsScript(settings));
-  const p = await ctx.newPage(); p.setDefaultTimeout(6000); await p.goto(srv.origin + '/'); await p.waitForSelector('#modeCash'); return p;
+  const p = await ctx.newPage(); p.setDefaultTimeout(6000); await p.goto(srv.origin + '/'); await p.waitForSelector('#modeCash');
+  if (INSETS) await p.addStyleTag({ content: `#app { padding-top: max(${vp.sat}px, 10px) !important; padding-bottom: max(${vp.sab}px, 14px) !important; }` });
+  return p;
 }
 
 // in-page: seats + backs + street
