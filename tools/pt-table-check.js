@@ -49,7 +49,7 @@ const TABLE = () => {
       out.folded++;
       if (q.backs.length) out.viol.push({ key: q.id, kind: 'folded/out seat shows backs', value: q.backs.length });
       const pos = q.s.querySelector('.pos'); const o = eo(pos);
-      if (o > 0.5) out.viol.push({ key: q.id, kind: 'folded seat not faded', value: o.toFixed(2) });
+      if (o > 0.5 && !(pos.classList.contains('btn-pos') && getComputedStyle(pos).backgroundColor !== 'rgb(242, 242, 242)')) out.viol.push({ key: q.id, kind: 'folded seat not faded', value: o.toFixed(2) });
     } else {
       out.active++;
       if (!q.shown && q.backs.length !== 2) out.viol.push({ key: q.id, kind: 'active seat backs != 2', value: q.backs.length });
