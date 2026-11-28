@@ -174,38 +174,60 @@ export function createSolver3(spec) {
   }
   // sum over t-combos disjoint from cards x0..x3 (inclusion-exclusion):
   // Rt - sum cs[x] + sum over pairs (xi,xj) that are t-combos of rt.
+  // kt(p, o, t): for every (p-combo h, o-combo j) the six t-list indices of
+  // the t-combos made from two of the four cards {h1,h2,o1,o2} (sentinel
+  // n_t when the pair is not in t's range). Static, built lazily.
+  const ktCache = {};
+  function kt(p, o, t) {
+    const key = p * 9 + o * 3 + t;
+    if (ktCache[key]) return ktCache[key];
+    const lp = L[p], lo = L[o], nt = L[t].n, pt = L[t].pair;
+    const T = new Int16Array(lp.n * lo.n * 6);
+    for (let h = 0; h < lp.n; h++) {
+      for (let j = 0; j < lo.n; j++) {
+        const x = [lp.c1[h], lp.c2[h], lo.c1[j], lo.c2[j]];
+        let u = (h * lo.n + j) * 6;
+        for (let i = 0; i < 4; i++) for (let k = i + 1; k < 4; k++) {
+          const v = x[i] === x[k] ? -1 : pt[x[i] * 52 + x[k]];
+          T[u++] = v < 0 ? nt : v;
+        }
+      }
+    }
+    return (ktCache[key] = T);
+  }
+  const rtx = [0, 1, 2].map(() => new Float64Array(NUM_COMBOS + 1));
+  // sum over t-combos disjoint from cards x0..x3 (inclusion-exclusion):
+  // Rt - sum cs[x] + sum over pairs (xi,xj) that are t-combos of rt.
   function pairSum(p, o, t, ro, rt, winU, tieU, loseU, out) {
     const lp = L[p], lo = L[o], lt = L[t];
     const cs = csTmp[t];
     const Rt = cardSums(t, rt, cs);
-    const cm = compat[p][o], no = lo.n, pt = lt.pair;
+    const R = rtx[t];
+    R.set(rt); R[lt.n] = 0;
+    const K = kt(p, o, t);
+    const cm = compat[p][o], no = lo.n;
     const constant = winU === tieU && tieU === loseU;
+    const cso = csO; // per o-combo: cs[o1] + cs[o2]
+    for (let j = 0; j < no; j++) cso[j] = cs[lo.c1[j]] + cs[lo.c2[j]];
     for (let h = 0; h < lp.n; h++) {
-      const h1 = lp.c1[h], h2 = lp.c2[h], sp = lp.score[h];
+      const sp = lp.score[h];
       let acc = 0;
-      const base = Rt - cs[h1] - cs[h2];
-      const jh = pt[h1 * 52 + h2];
-      const hh = jh >= 0 ? rt[jh] : 0;
+      const base = Rt - cs[lp.c1[h]] - cs[lp.c2[h]];
       for (let j = 0; j < no; j++) {
         const w = ro[j];
         if (w === 0 || cm[h * no + j] === 0) continue;
-        const q1 = lo.c1[j], q2 = lo.c2[j];
-        let c = base - cs[q1] - cs[q2] + hh;
-        let k = pt[q1 * 52 + q2]; if (k >= 0) c += rt[k];
-        k = pt[h1 * 52 + q1]; if (k >= 0) c += rt[k];
-        k = pt[h1 * 52 + q2]; if (k >= 0) c += rt[k];
-        k = pt[h2 * 52 + q1]; if (k >= 0) c += rt[k];
-        k = pt[h2 * 52 + q2]; if (k >= 0) c += rt[k];
-        if (constant) acc += winU * w * c;
+        const u = (h * no + j) * 6;
+        const c = base - cso[j] + R[K[u]] + R[K[u + 1]] + R[K[u + 2]] + R[K[u + 3]] + R[K[u + 4]] + R[K[u + 5]];
+        if (constant) acc += w * c;
         else {
           const so = lo.score[j];
           acc += (sp > so ? winU : sp === so ? tieU : loseU) * w * c;
         }
       }
-      out[h] += acc;
+      out[h] += constant ? winU * acc : acc;
     }
   }
-  const XP = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]];
+  const csO = new Float64Array(NUM_COMBOS);
 const clA = new Float64Array(52), cleA = new Float64Array(52), csA = new Float64Array(52);
   function threeWay(p, term, reach, out) {
     const q = (p + 1) % 3, r = (p + 2) % 3;
@@ -215,7 +237,9 @@ const clA = new Float64Array(52), cleA = new Float64Array(52), csA = new Float64
     clA.fill(0); cleA.fill(0);
     const Rall = cardSums(r, rr, csA);
     let Ll = 0, Lle = 0, pL = 0, pLE = 0;
-    const cm = compat[p][q], nq = lq.n, pr = lr.pair, sr = lr.score, srt = lr.sorted;
+    const cm = compat[p][q], nq = lq.n, sr = lr.score, srt = lr.sorted;
+    const K = kt(p, q, r), RR = rtx[r];
+    RR.set(rr); RR[lr.n] = 0;
     for (const h of lp.sorted) {
       const sp = lp.score[h];
       while (pL < lr.n && sr[srt[pL]] < sp) { const j = srt[pL++]; const v = rr[j]; clA[lr.c1[j]] += v; clA[lr.c2[j]] += v; Ll += v; }
@@ -230,11 +254,12 @@ const clA = new Float64Array(52), cleA = new Float64Array(52), csA = new Float64
         let All = Rall - csA[x0] - csA[x1] - csA[x2] - csA[x3];
         let Less = Ll - clA[x0] - clA[x1] - clA[x2] - clA[x3];
         let LE = Lle - cleA[x0] - cleA[x1] - cleA[x2] - cleA[x3];
+        const kb = (h * nq + j) * 6;
         for (let u = 0; u < 6; u++) {
-          const k = pr[XP[u][0] === 0 ? (x0 * 52 + (XP[u][1] === 1 ? x1 : XP[u][1] === 2 ? x2 : x3))
-            : XP[u][0] === 1 ? (x1 * 52 + (XP[u][1] === 2 ? x2 : x3)) : (x2 * 52 + x3)];
-          if (k < 0) continue;
-          const v = rr[k], s2 = sr[k];
+          const k = K[kb + u];
+          const v = RR[k];
+          if (v === 0) continue;
+          const s2 = sr[k];
           All += v;
           if (s2 < sp) { Less += v; LE += v; } else if (s2 === sp) LE += v;
         }
