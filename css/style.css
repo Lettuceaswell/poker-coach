@@ -62,14 +62,14 @@ button { font-family: inherit; color: inherit; background: none; border: 0; padd
 .mini .card { width: 30px; height: 42px; border-radius: 6px; }
 .mini .card .rk { font-size: 15px; top: 3px; left: 4px; }
 .mini .card .st { font-size: 14px; right: 4px; bottom: 2px; }
-.mini .card.dim { opacity: .45; }
+.mini .card.dim { filter: brightness(.62); }
 .won { position: absolute; top: -20px; font-size: 13px; font-weight: 700; color: var(--go); }
 
 /* cards */
 .card { position: relative; background: var(--card); border-radius: 14px; color: var(--black); overflow: hidden; }
 .card .rk { position: absolute; top: 8%; left: 12%; font-weight: 500; line-height: 1; letter-spacing: -.03em; }
 .card .st { position: absolute; bottom: 7%; right: 12%; line-height: 1; }
-.card.s-1, .card.s-2 { color: var(--red); }
+.card.s-1, .card.s-2 { color: #cc2420; }
 body.four .card.s-2 { color: var(--blue); }
 body.four .card.s-3 { color: var(--green); }
 .card.back { background: var(--card); }
@@ -124,7 +124,7 @@ body.four .card.s-3 { color: var(--green); }
 .hero-cards.mucked .card { background: transparent; border: 2px solid var(--line); color: #3a3a3c !important; box-shadow: none; }
 .hero-cards.queued .card { opacity: .5; }
 .hero-cards.flyaway .card { transform: translateY(-140%) rotate(-8deg); opacity: 0; }
-.hero-cards .hint { position: absolute; left: 0; right: 0; top: -20px; text-align: center; font-size: 12px; color: var(--dim); opacity: 0; transition: opacity .3s; pointer-events: none; }
+.hero-cards .hint { position: absolute; left: 0; right: 0; top: -20px; text-align: center; font-size: 12px; color: #b4b4ba; opacity: 0; pointer-events: none; }
 .hero-cards .hint.on { opacity: 1; }
 .hero-box { flex: 1; border: 2px solid var(--line); border-radius: 28px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 14px 6px 12px; min-width: 0; }
 .hero-box.winner { border-color: var(--win); }
@@ -281,7 +281,7 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 /* last action label fades in */
 .seat .nm { transition: color .2s; }
 .bet-chip.won { position: static; color: #000; background: var(--win); animation: wonPop .5s cubic-bezier(.2, 1.6, .4, 1) both; font-weight: 700; }
-@keyframes wonPop { from { transform: translateY(8px) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes wonPop { from { transform: translateY(8px) scale(.6); } to { transform: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
@@ -510,3 +510,19 @@ small { font-size: 13px !important; }
 .quick { flex-wrap: wrap; height: 44px; overflow: hidden; -webkit-mask-image: none; mask-image: none; gap: 6px; padding: 0; align-content: flex-start; }
 .quick button:last-child { margin-right: 0; }
 .quick button { padding: 0 11px; min-width: 44px; }
+
+/* lane b2: library / review / report / export screens (inside #panel) */
+.menu-tools { margin-bottom: 10px; }
+.feat { font-size: 15px; line-height: 1.4; }
+.f-lead { margin: 0 0 12px; color: var(--text); }
+.f-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; min-height: 44px; }
+.f-sel { flex: 1; min-height: 44px; font-size: 15px; background: #1a1a1c; color: var(--text); border: 1.5px solid #6a6a70; border-radius: 10px; padding: 0 10px; max-width: 70%; }
+.f-rows { margin: 8px 0; }
+.f-line { padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.f-total { font-weight: 700; }
+.f-note { font-size: 13px; color: #b5b5ba; margin: 8px 0 12px; }
+.f-btn { margin-top: 10px; min-height: 44px; }
+.f-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 0 0 10px; display: grid; gap: 4px; }
+.f-cost { font-weight: 600; }
+/* the table under the open menu is covered anyway; keep its buttons out of the tab/crawl order */
+#app:has(~ #menu.on) { display: none; }
