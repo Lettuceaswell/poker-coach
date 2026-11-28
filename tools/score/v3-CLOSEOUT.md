@@ -120,3 +120,7 @@ From `.zenith/decisions/2026-11-28-r3-what-validators-caught.md` and this list:
 3. Decide on D-PT-1: keep gauge learning low for honest assisted-decision accounting, or allow a clearly labeled "practice mode" that counts.
 4. Check the Lab 3-way river on the phone for solve time; tell me if it feels slow.
 5. Send any new playtest screenshots; the table layout is checked at 430x932 with insets but only your phone is ground truth.
+
+## 11. Push status
+
+All keep-rule numbers passed (8 LOG.md tests, threeway-test, postflop-regress, calib-verdict-test, legib-chips, pt-assist-test exit 0; no veto; no category below start by more than its band; trainer 1.67; offline reload in Chromium loaded Drills, Quiz and Lab with 0 network failures and 50 cached files). The final code a80d0d2 plus this closeout went to `main` (7420770), so the phone gets it from main. The remote branch `zenith-run3` still holds the older ship-1 commit 2a9c96f, which is not an ancestor of this history (it was not force-pushed); main is the source of truth.
