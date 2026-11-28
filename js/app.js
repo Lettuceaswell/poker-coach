@@ -901,10 +901,23 @@ function postflopSpot() {
   }));
   const way = e.villains + 1;
   if (way === 2) pf.request(game, heroI, S && S.strat ? S.strat : null).catch(() => {});
-  return withRoll({ live: way === 2 ? { pending: true } : null, eqNum: e.eq, needNum: e.need,
+  // exactly three on the river: the three-player solve (pf.request3), the estimate until it lands or if it times out
+  const t3 = way === 3 && game.street === 'river' ? pf.request3(game, heroI, S && S.strat ? S.strat : null) : null;
+  const base = { live: way === 2 ? { pending: true } : null, eqNum: e.eq, needNum: e.need,
     pos, hand: desc, mix, quality: 'estimate', estimate: true, way,
-    why: `${way > 2 ? way + '-way ' : ''}estimate · equity ${Math.round(e.eq * 100)}%${e.need ? ` vs ${Math.round(e.need * 100)}% needed` : ''}`,
-  });
+    why: `${way > 2 ? way + '-way ' : ''}estimate · equity ${Math.round(e.eq * 100)}%${e.need ? ` vs ${Math.round(e.need * 100)}% needed` : ''}${t3 && t3.state === 'pending' ? ' · 3-way solve running' : t3 && t3.state === 'timeout' ? ' · 3-way solve ran out of time' : ''}`,
+  };
+  if (t3 && t3.state === 'done' && t3.mix) {
+    const L = game.legal();
+    base.mix = t3.mix.map(a => ({
+      t: a.type === 'fold' ? 'f' : a.type === 'check' || a.type === 'call' ? 'c' : 'r',
+      to: a.amount, freq: a.freq,
+      label: a.type === 'fold' ? 'Fold' : a.type === 'check' ? 'Check' : a.type === 'call' ? 'Call'
+        : a.type === 'allin' || a.amount * BB >= L.maxTo ? 'All-in' : `${a.type === 'bet' ? 'Bet' : 'Raise'} ${num(a.amount * BB)}`,
+    }));
+    base.estimate = false; base.quality = 'approx'; base.three = { iters: t3.iters, ms: t3.ms };
+  }
+  return withRoll(base);
 }
 
 function meter(lv) {
@@ -925,6 +938,7 @@ function meter(lv) {
 
 function tag(sp) {
   if (sp.solved) return '';
+  if (sp.three) return ' <em>≈ 3-way solve</em>';
   if (sp.estimate) return ` <em>≈ ${sp.why}</em>`;
   if (sp.quality === 'approx') return ` <em>≈ ${sp.why}</em>`;
   if (sp.rare) return ' <em>≈ rare spot</em>';
@@ -938,7 +952,8 @@ function coachHTML() {
     if (cs.off) return `<span class="coach dim">${cs.pos} · ${cs.hand} · no solution here (${cs.why})</span>`;
     const parts = ordered(cs.mix).filter(m => m.hi >= m.lo)
       .map(m => `<span class="mx"><b class="${cs.pick === m ? 'picked' : ''}" style="color:${COLOR[m.t]}">${m.label}</b> ${m.lo === m.hi ? m.lo : m.lo + '–' + m.hi}</span>`).join('');
-    const lv = cs.live ? `<span class="meter-row">${meter(cs.live)}</span>` : '';
+    const lv = cs.live ? `<span class="meter-row">${meter(cs.live)}</span>`
+      : cs.three ? `<span class="meter-row"><span class="meter-text" data-coach="three-way">3-way solve · No guarantee</span></span>` : '';
     const anim = roll !== shownRoll ? ' anim' : '';
     shownRoll = roll;
     return `<span class="coach"><span class="coach-top"><span class="ct-txt"><span class="die${anim}">${roll}</span>${cs.pos} · ${cs.hand}${tag(cs)}</span><button class="why-btn">Why?</button></span><span class="mixline">${parts}</span><span class="mixfoot">${mixBar(cs.mix)}${lv}</span></span>`;
@@ -1049,6 +1064,12 @@ pf.setUpdateHandler((m, cur) => {
     cs.solved = true;
     withRoll(cs);
   }
+  refreshCoach();
+});
+// the three-way river solve landed (or timed out): swap the estimate for it while he is still deciding
+pf.setUpdateHandler3(() => {
+  if (!heroTurn || !cs || game.street !== 'river' || settings.coach === 'off') return;
+  cs = readSpot();
   refreshCoach();
 });
 function refreshCoach() {
@@ -1188,7 +1209,7 @@ function postflopPanelHTML(d, solved, waiting) {
         const lbl = a.type === 'fold' ? 'Fold' : a.type === 'check' ? 'Check' : a.type === 'call' ? 'Call' : a.type === 'allin' ? 'All-in' : `${a.type === 'bet' ? 'Bet' : 'Raise'} ${a.amount.toFixed(1)}`;
         return `<div class="${solved.values[i] === best ? 'best' : ''}"><span>${lbl}</span><b>${bbTxt(solved.values[i])} BB</b></div>`; }).join('')}</div><p class="dim small">Expected value of each option with your exact hand, from the live solve.</p></section>`;
     }
-    if (cs.mix) html += `<section><h4>Coach mix</h4>${mixRows(cs.mix, cs.pick?.label)}</section>`;
+    if (cs.mix) html += `<section><h4>Coach mix</h4>${mixRows(cs.mix, cs.pick?.label)}${cs.three ? `<p class="dim small">Three-player solve, ${cs.three.iters} passes over narrowed ranges. No guarantee: with three players no mix is provably unexploitable, so read this as the best available advice, not a proof.</p>` : ''}</section>`;
     if (waiting) html += '<p class="dim small solver-wait">Reading the solver for option values and your range…</p>';
   }
   return html;
@@ -1448,7 +1469,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // test hook
-window.__poker = { forceCoach: (mix) => { if (!heroTurn) return false; const base = cs && !cs.off && !cs.loading ? cs : { pos: 'BB', hand: 'JTo' }; cs = withRoll({ ...base, mix: mix.map(m => ({ ...m })), live: null, solved: true }); $('status').innerHTML = coachHTML(); return true; }, game: () => game, render, settings, play, coach: () => cs, assisted: () => assisted, markAssisted, act: (t, to) => heroAct(t, to), analysis: { rankInSet, ownRange, state: analysisState } };
+window.__poker = { forceCoach: (mix) => { if (!heroTurn) return false; const base = cs && !cs.off && !cs.loading ? cs : { pos: 'BB', hand: 'JTo' }; cs = withRoll({ ...base, mix: mix.map(m => ({ ...m })), live: null, solved: true }); $('status').innerHTML = coachHTML(); return true; }, game: () => game, render, settings, play, coach: () => cs, assisted: () => assisted, markAssisted, act: (t, to) => heroAct(t, to), analysis: { rankInSet, ownRange, state: analysisState }, three: { last: () => pf.lastThree, budget: pf.budget3 } };
 
 // ---------- feature screens: spot library, hand review, report, export (lane b2) ----------
 const featCtx = () => ({ strategies, loadStrategy, seats: settings.seats, openPanel, panelView, H });

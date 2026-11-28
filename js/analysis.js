@@ -15,6 +15,7 @@ import { gridHTML } from './grid.js';
 import { preflopDetail, boardTags, villainView, postflopDetail, draws } from './explain.js';
 import { preflopRanges, toCombos, narrow, COMBOS, equityVsRanges } from './ranges.js';
 import { describe } from './cards.js';
+import { multiwayShares } from './multiway.js';
 
 const COMBOS169 = (() => { const a = new Array(169).fill(0); COMBOS.forEach(([x, y, c]) => { a[c]++; }); return a; })();
 const TABS = [['range', 'Range'], ['history', 'History'], ['opps', 'Opponents'], ['board', 'Board'], ['odds', 'Odds'], ['leaks', 'Leaks'], ['stats', 'Stats'], ['tools', 'Tools']];
@@ -149,6 +150,14 @@ async function tabBoard(x) {
   if (d.read && d.read.equity != null) {
     html += `<section><h4>Who the board favors</h4><div class="vs"><span>You ${pct(d.read.equity)}</span><i><b style="width:${Math.round(d.read.equity * 100)}%"></b></i><span>${d.read.them} ${pct(1 - d.read.equity)}</span></div>
       <p class="small dim">Range against range. Strongest 10 percent of hands on this board: ${pct(d.read.nutsYou)} of your range, ${pct(d.read.nutsThem)} of theirs.</p></section>`;
+  } else if (n > 2 && g.players.filter(q => !q.folded && !q.out).length > 2) {
+    const m = multiwayShares(g, strat);
+    if (m) {
+      const rows = m.players.map(r => `<div class="vs"><span>${r.hero ? 'You, ' : ''}${r.pos}</span><i><b style="width:${Math.round(r.share * 100)}%"></b></i><span>${pct(r.share)}</span></div>`).join('');
+      const verdict = m.favorite ? `The board favors ${m.favorite.hero ? 'your range' : m.favorite.pos + "'s range"} (${pct(m.favorite.share)} against a fair share of ${pct(1 / m.players.length)}).` : 'No single favorite: no range leads its fair share by enough to matter.';
+      html += `<section><h4>Who the board favors</h4>${rows}<p class="an-big">${verdict}</p>
+        <p class="small dim">Each player's range against the others, ties split. ${m.exactBoard ? 'The board is complete, so this is each range on exactly these five cards.' : 'Estimate: the cards still to come are dealt at random, so the numbers move a point or two between looks.'} It compares ranges, not your actual hand.</p></section>`;
+    } else html += '<section><h4>Who the board favors</h4><p class="dim small">No range data for this pot.</p></section>';
   } else html += '<section><h4>Who the board favors</h4><p class="dim small">Shown for heads-up pots.</p></section>';
   return html;
 }
@@ -209,7 +218,7 @@ const RENDER = { range: tabRange, history: tabHistory, opps: tabOpps, board: tab
 export function openAnalysis(x) {
   const g = x.game();
   const key = `${g.handNo}:${g.street}:${x.heroTurn()}`;
-  if (state.key.split(':')[0] !== String(g.handNo)) state.reveal = {}; // reveals never carry into another hand
+  if (state.key !== key) state.reveal = {}; // a reveal covers one decision only: the next street or turn hides it again and counts again
   state.key = key;
   const shell = `<div class="an" data-feature-tab="analysis"><div class="an-tabs" role="tablist">${TABS.map(([k, t]) => `<button role="tab" data-tab="${k}" class="${state.tab === k ? 'on' : ''}">${t}</button>`).join('')}</div><div class="an-body"></div></div>`;
   x.openPanel('Analysis', shell);
