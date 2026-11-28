@@ -340,13 +340,14 @@ function placeTable() {
     for (let dy = -150; dy <= 170; dy += 4) for (let dx = -170; dx <= 170; dx += 4) {
       const cx = seat.cx + dx, cy = seat.cy + dy, r = { left: cx - w / 2, right: cx + w / 2, top: cy - h / 2, bottom: cy + h / 2 };
       if (r.left < 2 || r.right > vw - 2 || r.top < sr.top - 2 || r.bottom > board.top - 3) continue;
+      const gx = Math.max(seat.ava.left - r.right, r.left - seat.ava.right, 0), gy = Math.max(seat.ava.top - r.bottom, r.top - seat.ava.bottom, 0);
+      const cost = Math.hypot(gx, gy) + pref * Math.hypot(cx - mid.x, cy - mid.y) * 0.12;
+      if (best && cost >= best.cost) continue; // cheap test first: a spot that cannot beat the best never needs the collision scan (same result, ~10x less main-thread time)
       let ok = true;
       for (const f of fixed) if (hit(r, f)) { ok = false; break; }
       if (ok) for (const f of placed) if (hit(r, f)) { ok = false; break; }
       if (!ok) continue;
-      const gx = Math.max(seat.ava.left - r.right, r.left - seat.ava.right, 0), gy = Math.max(seat.ava.top - r.bottom, r.top - seat.ava.bottom, 0);
-      const cost = Math.hypot(gx, gy) + pref * Math.hypot(cx - mid.x, cy - mid.y) * 0.12;
-      if (!best || cost < best.cost) best = { cost, r };
+      best = { cost, r };
     }
     if (!best) { el.style.left = ''; el.style.top = ''; el.style.translate = ''; el.classList.add('unplaced'); return; }
     el.classList.remove('unplaced');

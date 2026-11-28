@@ -43,17 +43,20 @@ async function waitHero(p, ms = 40000) {
   return false;
 }
 // deterministic policy from the hole cards: strong preflop hands raise, everything else calls/checks
+let policy = 'tight';
 async function act(p) {
-  await p.evaluate(() => {
+  await p.evaluate((policy) => {
     const g = window.__poker.game(), h = g.players.find(x => x.isHero);
     const r = h.cards.map(c => c >> 2);
-    const strong = g.street === 'preflop' && (r[0] === r[1] || Math.max(...r) >= 11);
+    // 'leaky' policy: raise every hand preflop and call everything after, so the history is full of leaks
+    const strong = policy === 'leaky' ? g.street === 'preflop' : g.street === 'preflop' && (r[0] === r[1] || Math.max(...r) >= 11);
     const q = (x) => document.querySelector(x);
     const rb = q('#actions [data-a="raise"]');
     if (strong && rb) rb.click();
     else if (g.street === 'preflop' && g.legal().canCheck) window.__poker.act('check');
+    else if (policy === 'leaky') window.__poker.act('call');
     else window.__poker.act('fold');
-  });
+  }, policy);
 }
 async function play(p, n, { reveal = 0 } = {}) {
   const before = decs(await db(p)).length;
@@ -122,6 +125,17 @@ if (!only || only === 'C') {
   ok(s.assisted === 0 && s.n >= 20, 'C: coach after, no reveal -> 0 flagged', `n=${s.n}`);
   out.C = { preflop: s.preflop, acc: s.acc, bbLost: s.bbLost, sessionPf: s.sessionPf, leaks: s.leaks.map(l => l[0]) };
   await p.context().close();
+}
+if (!only || only === 'C2') {
+  policy = 'leaky';
+  const p = await open(44, 'after');
+  await play(p, 30);
+  const s = await stats(p);
+  ok(s.assisted === 0 && s.n >= 30, 'C2: leaky policy, coach after, no reveal -> 0 flagged', `n=${s.n}, leaks ${s.leaks.length}, bbLost ${s.bbLost}`);
+  ok(s.leaks.length > 0, 'C2: this seed/policy produces leaks (so the leak diff is not vacuous)');
+  out.C2 = { preflop: s.preflop, acc: s.acc, bbLost: s.bbLost, sessionPf: s.sessionPf, leaks: s.leaks };
+  await p.context().close();
+  policy = 'tight';
 }
 if (!only || only === 'R') {
   // rank in range, recomputed independently in node: brute force over 1326 combos with the stored strength table
