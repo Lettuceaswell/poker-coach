@@ -61,3 +61,9 @@ Kept:
 Incomplete / not shipped: quiz prompt type; deliberate-practice and desirable-difficulty learning sub-scores; postflop library by board; all-or-nothing node-lock; multiway is an estimate, not a solve; preflop at one stack depth.
 
 Rejected: none by the orchestrator as a feature. Gauge-side: static review/trainer text can earn reach points (accepted risk, diffs read by hand).
+
+## Levi's verdicts on run 2's asks (2026-11-27, 19:15)
+- Flop drill solve time: Claude decides. Decision: re-solve only the flops that did not converge, with a 300 s budget per spot and fewer flops, rather than raising the budget for all.
+- Quiz-style prompts: yes.
+- Three-player solve and per-street node-lock: Claude decides what is feasible. Decision: a real 3-player river solve (CFR over three ranges, labeled "no guarantee" and checked by locking two players and best-responding the third), plus per-street node-lock. Flop/turn three-way stays an estimate for now: the tree is too big for the phone.
+- iPhone test: not now, soon.
