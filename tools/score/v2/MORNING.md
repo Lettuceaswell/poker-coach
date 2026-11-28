@@ -112,3 +112,7 @@ The ship task pauses both units before scoring and resumes after, and records it
 systemctl --user kill -s SIGSTOP poker-calib poker-flopdrills   # then score
 systemctl --user kill -s SIGCONT poker-calib poker-flopdrills
 ```
+
+## Note added 19:12 (orchestrator)
+- `poker-flopdrills` already finished (585 spots, `data/flopdrills/night/flops-night.json`); only the merge step remains.
+- The unit commands carry `taskset -c 8-15`, so `AllowedCPUs` does not widen them. At 19:12 the running calib processes were re-pinned live to cores 2-15 (`taskset -a -cp 2-15 <pid>`). The later 5/4/3-player runs inside `poker-calib` start with `taskset -c 8-15` again; to give them more cores: `for p in $(pgrep -f tools/calib/run.js); do taskset -a -cp 2-15 $p; done`.
