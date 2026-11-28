@@ -530,3 +530,4 @@ small { font-size: 13px !important; }
 /* lane a3: lab screen (inside #panel) */
 .lab-sec { margin: 0 0 18px; padding-top: 6px; border-top: 1px solid var(--line); }
 .f-in { flex: 1; min-width: 0; min-height: 44px; font-size: 15px; background: #1a1a1c; color: var(--text); border: 1.5px solid #6a6a70; border-radius: 10px; padding: 0 10px; max-width: 58%; }
+.lab-btns { flex-wrap: wrap; } .lab-btns .btn { flex: 1 1 100%; margin-top: 0; }

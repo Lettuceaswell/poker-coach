@@ -64,13 +64,13 @@ export function openLab(ctx) {
     <button class="btn f-btn" id="labSolve">Solve</button><div class="f-rows" id="labOut"></div></section>
   <section data-feature="nodelock" class="lab-sec"><h4>Node lock</h4>
     <p class="f-note">Fix what OOP does at the root, re-solve, and see how IP must respond. Uses the board, ranges, pot and stack above.</p>
-    <div class="f-row"><button class="btn f-btn" id="labLockBet">Lock OOP: always bets</button><button class="btn f-btn" id="labLockChk">Lock OOP: always checks</button><button class="btn f-btn" id="labUnlock">Unlock</button></div>
+    <div class="f-row lab-btns"><button class="btn f-btn" id="labLockBet">Lock OOP: always bets</button><button class="btn f-btn" id="labLockChk">Lock OOP: always checks</button><button class="btn f-btn" id="labUnlock">Unlock</button></div>
     <div class="f-rows" id="labLockOut"></div></section>
   <section data-feature="multiway" class="lab-sec"><h4>Multiway (3-way)</h4>
     <label class="f-row"><span>Spot</span><select class="f-sel" id="labMw">${mwOpts}</select></label><div class="f-rows" id="labMwOut"></div></section>
   <section data-feature="stacks" class="lab-sec"><h4>Stack depth</h4>
     <p class="f-note">Postflop stacks: effective stack at the river start, same board, ranges and pot.</p>
-    <div class="f-row"><button class="btn f-btn labStk" data-bb="100">100 BB</button><button class="btn f-btn labStk" data-bb="40">40 BB</button><button class="btn f-btn labStk" data-bb="25">25 BB</button></div><div class="f-rows" id="labStkOut"></div></section>
+    <div class="f-row lab-btns"><button class="btn f-btn labStk" data-bb="100">100 BB</button><button class="btn f-btn labStk" data-bb="40">40 BB</button><button class="btn f-btn labStk" data-bb="25">25 BB</button></div><div class="f-rows" id="labStkOut"></div></section>
   </div>`;
   ctx.openPanel('Lab', html);
   const $ = (id) => document.getElementById(id);
