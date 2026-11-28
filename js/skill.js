@@ -72,10 +72,12 @@ export const isFresh = (H) => (H.history.drills.n || 0) < 10;
 // target difficulty (1 - solver top frequency): 0 = clear hands, ~0.45 = hands where the solver mixes
 export function targetDifficulty(skill) {
   if (skill == null) return 0.05; // no history: clear spots
-  return 0.5 * Math.max(0, Math.min(1, (skill - 0.55) / 0.35));
+  // above 0.8 the target rides past the easiest mixed hands (edge-of-range hands weigh most)
+  const t = Math.max(0, Math.min(1, (skill - 0.55) / 0.35));
+  return 0.5 * t + (skill > 0.8 ? 0.1 * Math.min(1, (skill - 0.8) / 0.12) : 0);
 }
 // weight of an item with difficulty dif for this target (kernel; every item keeps a small chance)
-export const diffWeight = (dif, target) => 0.03 + Math.exp(-((dif - target) ** 2) / (2 * 0.13 * 0.13));
+export const diffWeight = (dif, target) => 0.004 + Math.exp(-((dif - target) ** 2) / (2 * 0.13 * 0.13));
 export function pickWeighted(items, wf) {
   const w = items.map(wf); let r = Math.random() * sum(w);
   for (let i = 0; i < items.length; i++) { r -= w[i]; if (r <= 0) return items[i]; }
@@ -112,9 +114,9 @@ export function progressLine(H, type, label, prevL) {
 }
 export const levelBefore = (H, type) => masteryOf((H.history.drills.types || {})[type] || []).L;
 
-// While easing off, a due review that was a close spot waits (at most 3 items past its due mark, so a miss
-// still returns within 8 items) and clearer items go first; review difficulty counts toward the mean.
+// While easing off, a due review that was a close spot waits (at most 6 items past its due mark, so a miss
+// still returns within ~9 items) and clearer items go first; review difficulty counts toward the mean.
 export function holdReview(H, x, dif) {
   if (!isEasing(H) || dif == null || dif <= 0.2) return false;
-  return (H.history.drills.n - x.due) < 3;
+  return (H.history.drills.n - x.due) < 6;
 }

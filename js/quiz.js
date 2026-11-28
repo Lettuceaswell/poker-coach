@@ -17,7 +17,8 @@ const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 export const KINDS = ['equity', 'mdf', 'blocker', 'fold', 'spr'];
 export const MONEY_KINDS = ['equity', 'mdf', 'fold'];
 const CYCLE = ['equity', 'mdf', 'blocker', 'fold', 'equity', 'spr', 'mdf', 'fold']; // 6 of 8 use stored-hand numbers
-let cyc = rnd(CYCLE.length);
+// drawn on first use, not at module load: a load-time Math.random shifts the app's seeded stream for everything after it
+let cyc = null;
 
 // ---------- answers (each one number computed from the spot) ----------
 export const answers = {
@@ -215,6 +216,7 @@ export function nextSpec(H, streamN, opts = {}) {
   if (i >= 0) { const x = q.splice(i, 1)[0]; return { spec: x.spec, review: true, box: x.box }; }
   const d = SCH.takeDue('quiz');
   if (d && d.spec) return { spec: d.spec, review: true, box: 0, cross: true };
+  if (cyc == null) cyc = rnd(CYCLE.length);
   let kind = CYCLE[cyc++ % CYCLE.length];
   if (opts.moneyOnly && !MONEY_KINDS.includes(kind)) kind = pick(MONEY_KINDS);
   return { spec: newSpec(H, kind), review: false, box: 0 };

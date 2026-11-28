@@ -44,6 +44,8 @@ const hi = await session(11, { drills: { n: 60, good: 58, queue: [] } }, Array(3
 const lo = await session(11, { drills: { n: 60, good: 12, queue: [] } }, Array(30).fill('best'));
 const mh = mean(hi.map(x => x.dif)), ml = mean(lo.map(x => x.dif));
 res.hi = { mean: mh, items: hi }; res.lo = { mean: ml, items: lo };
+const m10 = (a) => mean(a.slice(0, 10).map(x => x.dif)), g10 = m10(hi) - m10(lo);
+console.log(`   10-item gap ${g10.toFixed(3)}; 20-item gap ${(mean(hi.slice(0,20).map(x=>x.dif)) - mean(lo.slice(0,20).map(x=>x.dif))).toFixed(3)}`);
 check(mh - ml >= 0.12, `high ${mh.toFixed(3)} vs low ${ml.toFixed(3)} (gap ${(mh - ml).toFixed(3)} >= 0.12)`);
 check(/serving closer spots/.test(hi.map(x => x.why).join(' ')) && /92|91|90|93|94|95 percent/.test(hi[0].why) || /percent/.test(hi[0].why), 'plain-words message on high seed: ' + hi[0].why);
 console.log('Case 2: fresh profile');
