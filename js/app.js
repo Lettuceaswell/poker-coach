@@ -337,6 +337,7 @@ function placeTable() {
     el.style.left = '0px'; el.style.top = '0px'; el.style.translate = 'none';
     const w = el.offsetWidth, h = el.offsetHeight; if (!w || !h) return; // layout size: a pop-in animation's scale must not shrink the reserved spot
     let best = null;
+    const near = fixed.filter(f => hit(f, { left: seat.cx - 170 - w / 2, right: seat.cx + 170 + w / 2, top: seat.cy - 150 - h / 2, bottom: seat.cy + 170 + h / 2 }, 3)); // only blockers inside the search window can matter
     for (let dy = -150; dy <= 170; dy += 4) for (let dx = -170; dx <= 170; dx += 4) {
       const cx = seat.cx + dx, cy = seat.cy + dy, r = { left: cx - w / 2, right: cx + w / 2, top: cy - h / 2, bottom: cy + h / 2 };
       if (r.left < 2 || r.right > vw - 2 || r.top < sr.top - 2 || r.bottom > board.top - 3) continue;
@@ -344,7 +345,7 @@ function placeTable() {
       const cost = Math.hypot(gx, gy) + pref * Math.hypot(cx - mid.x, cy - mid.y) * 0.12;
       if (best && cost >= best.cost) continue; // cheap test first: a spot that cannot beat the best never needs the collision scan (same result, ~10x less main-thread time)
       let ok = true;
-      for (const f of fixed) if (hit(r, f)) { ok = false; break; }
+      for (const f of near) if (hit(r, f)) { ok = false; break; }
       if (ok) for (const f of placed) if (hit(r, f)) { ok = false; break; }
       if (!ok) continue;
       best = { cost, r };
