@@ -72,11 +72,11 @@ export function difficultyLine(H, type) {
   if (e.skill == null) return 'New here: starting with clear spots; closer calls come as your answers get steadier.';
   const s = pct(e.skill), m = e.recent.length;
   const misses = e.recent.slice(-3).filter(x => !x).length;
-  const basis = m ? `${s}% (your ${d.n} drills blended with your last ${m})` : `${s}% (from your ${d.n} drills)`;
+  const basis = m ? `${s} percent (your ${d.n} drills blended with your last ${m})` : `${s} percent (from your ${d.n} drills)`;
   if (misses >= 2) return `Two misses in your last 3: easing off to clearer spots until they come back. You're at ${basis}.`;
-  if (e.skill >= 0.85) return `You're at ${basis}: serving closer spots where the solver mixes, aiming for about 85% right.`;
+  if (e.skill >= 0.85) return `You're at ${basis}: serving closer spots where the solver mixes, aiming for about 85 percent right.`;
   if (e.skill >= 0.65) return `You're at ${basis}: serving a mix of clear and close spots.`;
-  return `You're at ${basis}: serving clearer spots until about 85% of them are right.`;
+  return `You're at ${basis}: serving clearer spots until about 85 percent of them are right.`;
 }
 
 // ---------- mastery (progress after a correct answer) ----------
@@ -90,7 +90,7 @@ export function masteryOf(arr) {
 export function progressLine(H, type, label, prevL) {
   const arr = (H.history.drills.types || {})[type] || [];
   const m = masteryOf(arr), d = H.history.drills;
-  const next = m.L < 4 ? ` Next step: ${STEPS[m.L][0]} answers at ${pct(STEPS[m.L][1])}%.` : '';
+  const next = m.L < 4 ? ` Next step: ${STEPS[m.L][0]} answers at ${pct(STEPS[m.L][1])} percent.` : '';
   const up = prevL != null && m.L > prevL ? ` Up from ${prevL}.` : '';
   return `<p class="progress-line">${label}: mastery level ${m.L} of 4, ${m.hits} of your last ${m.n} right.${up}${next} All spots: ${d.good} right of ${d.n}.</p>`;
 }
