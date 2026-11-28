@@ -52,3 +52,18 @@ ETA per round (estimate: 14 spots x 22 flops = 308 solves x ~153 s / 8 workers =
 
 ## Flop re-solve unit (poker-flopnight)
 Launched 2026-11-27 20:12 as unit `poker-flopnight` (Nice=19, taskset 5-7, 3 workers, `--skips-from data/flopdrills/night/night.log --secs 300 --tag night300`). Job list = the 125 `skip` lines of run 2's night.log (diff empty: data/flopdrills/night/night300.jobs.txt). ETA: 125 x ~300 s / 3 workers = about 3.5 h, so about 23:45 (revised from first 10 flops below). Output data/flopdrills/night/flops-night300.json (saved after every flop), log data/flopdrills/night300.log. Not merged yet (a later task merges what passes exploit <= 3).
+
+## Final gates and flop merge (w-night-final3, 2026-11-28 03:46 CST)
+Dry runs: `node tools/calib/apply.js --dir data/calib/r3n6 --round R` (exit codes below). Baseline (round 0, live data/preflop-6.bin): SB limp 55.86, BTN RFI 46.27, BB def vs BTN 62.35, HU -99.2 mbb.
+
+| round | SB limp | BTN RFI | BB def vs BTN | HU mbb | drift | gate |
+|---|---|---|---|---|---|---|
+| 1 | 56.13 FAIL (must fall) | 40.29 PASS | 57.77 PASS | -87.0 FAIL (worse than -99.2) | 0.074 | REFUSED, exit 1 |
+| 2 | 53.82 PASS | 40.57 PASS | 63.79 FAIL (distance to band 2.35 -> 3.79) | -88.8 FAIL | 0.071 | REFUSED, exit 1 |
+
+Nothing applied: `data/preflop-6.bin` untouched (symlink to the main checkout). No thresholds edited. VAL-CALIB-004 (keep-rule run) not needed.
+(Gauge note: the HU number is the same noisy 1-minute solve apply.js compares with tol 0; both rounds are about 11 mbb worse than the baseline.)
+
+Round 3 is NOT waited for. Unit `poker-calib` keeps running (round 3 postflop until about 03:56, MCCFR ends about 05:11) and was not stopped. Levi gets round 3 in the morning: when `data/calib/r3n6/gauges.jsonl` has a round-3 row and the unit is done, run `node tools/calib/apply.js --dir data/calib/r3n6 --players 6 --round 3` (dry run, exit 0 = accept), and only then `--apply` (per tools/score/v2/MORNING.md section 3: backs up, writes through the symlink, packs), then bump CACHE, run the 8 LOG.md tests and a full v2 from a commit snapshot (keep rule in AGENTS.md). Rebuild flop drills against a new bin or note the mismatch.
+
+Flop drills: `node tools/flopdrills/build.js --merge --out data/flopdrills/night` merged flops-night300.json (125 flops solved, 306 spots, max exploit 2.97, mean 2.25, all under the 3 cap): data/postflop-drills.json 741 -> 1047 spots (src flopdrills 585 -> 891), ids unique. After merge: coach-test 837 passed 0 failed, rules-test 109 passed 0 failed.
