@@ -219,6 +219,7 @@ input[type=range] { width: 100%; margin: 0 0 22px; accent-color: #f2f2f2; height
 /* ===== design pass ===== */
 /* bet chips lean toward the middle of the table */
 .seat .bet-chip { transform: translateX(var(--dx, 0)); }
+.seat .bet-chip.won { translate: calc(var(--dx, 0) * 1.8) 0; } /* the wonPop animation overrides transform, so lean the winner chip toward the middle with translate; clears a neighbour's shown cards */
 .bet-chip { box-shadow: inset 0 0 0 1.5px rgba(245, 225, 74, .18); }
 
 /* the button pulses; a sweep runs through the seats in acting order */

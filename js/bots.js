@@ -12,7 +12,7 @@ export const PERSONA_KEYS = Object.keys(PERSONAS);
 
 const NAMES = ['riverrat', 'kev_22', 'jess.b', 'nitbot', 'lucky7', 'mo_money', 'ace_hi', 'big_sal',
   'chipz', 'turbo_tom', 'lindz', 'dee.dee', 'Porkchop', 'mr_fold', 'cardsharkk', 'tilted_tina',
-  'gutshot_g', 'sammie', 'potlord', 'jjforlife', 'r0ckstar', 'busterb', 'ally_cat', 'nuts_or_bust',
+  'gutshot_g', 'sammie', 'potlord', 'jjforlife', 'r0ckstar', 'busterb', 'tabby_cat', 'nuts_or_bust',
   'grandpa_joe', 'sunnyside', 'kingkongg', 'velvet', 'el_gato', 'hotdog_hal'];
 export function makeBot(taken = new Set(), rng = Math.random) {
   const pick = (arr) => {
