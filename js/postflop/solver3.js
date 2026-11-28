@@ -38,6 +38,15 @@ export const DEFAULT_SIZES3 = Object.freeze({
   bet: [0.5, 1], raise: [2.5], allin: false, maxBets: 2, allinThreshold: 0.67,
 });
 
+// Live coach budget: ~21 ms per iteration at 150 combos per seat on a desktop core (a phone is
+// 3-4x slower), so 80 iterations land in about 2 s on a laptop and about 6 s on a phone.
+export const THREEWAY_LIVE_ITERS = 80;
+export const THREEWAY_LIVE_MS = 10000; // phone time budget in ms; past it the coach shows the labeled estimate
+
+// Iteration budgets (fixed counts keep every solve deterministic).
+// THREEWAY_LAB_ITERS: the Lab's 3-way river solve. It shows the gain at the phone budget, so it is the live count.
+export const THREEWAY_LAB_ITERS = THREEWAY_LIVE_ITERS;
+
 const ACT = 0, TERM = 1;
 
 function nextIn(inn, p) {
