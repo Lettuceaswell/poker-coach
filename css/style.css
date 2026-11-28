@@ -40,7 +40,7 @@ button { font-family: inherit; color: inherit; background: none; border: 0; padd
 .seat.folded .ava-wrap { opacity: .5; }
 .seat.folded .pos:not(.btn-pos) { color: #fff; }
 .seat.folded .ava-wrap:has(.btn-pos) { opacity: 1; }
-.seat.folded .pos.btn-pos { background: #66666b; border-color: #66666b; color: #fff; } /* dealer circle dims to grey: still 5:1 text contrast */
+.seat.folded .pos.btn-pos { background: #cfcfd4; border-color: #8a8a90; color: #000; } /* dealer circle dims to light grey (not #f2f2f2), black text 13:1; fill stays above the gauge's 'bright' threshold */
 .seat.folded .nm, .seat.folded .stk { opacity: .92; }
 .seat.out { opacity: .15; }
 .timer { width: 24px; height: 24px; border-radius: 50%; margin-bottom: 8px; visibility: hidden;
