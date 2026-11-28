@@ -296,7 +296,7 @@ function render() {
     $('status').innerHTML = coachHTML();
   } else {
     const st = game.street ? game.street[0].toUpperCase() + game.street.slice(1) : '';
-    $('status').textContent = heroTurn && settings.coach !== 'always' && lastSizeLabel ? `${st} · dashed size = your last size here` : st;
+    $('status').textContent = heroTurn && settings.coach !== 'always' && lastSizeLabel ? `${st} · ${lastSizeLabel} is your last size here` : st;
   }
 
   // hero
@@ -466,7 +466,7 @@ function renderQuick() {
   if (!heroTurn || game.handOver) { el.innerHTML = ''; return; }
   const L = game.legal();
   if (!L.canRaise) { el.innerHTML = ''; return; }
-  el.innerHTML = sizes(L).map(([l, to]) => `<button class="${to === selTo ? 'on' : ''}${settings.coach !== 'always' && l === lastSizeLabel ? ' last' : ''}" ${settings.coach !== 'always' && l === lastSizeLabel ? 'title="your last size here" ' : ''}data-l="${l}" data-to="${to}">${l}</button>`).join('');
+  el.innerHTML = sizes(L).map(([l, to]) => `<button class="${to === selTo ? 'on' : ''}${settings.coach !== 'always' && l === lastSizeLabel ? ' lastsz' : ''}" ${settings.coach !== 'always' && l === lastSizeLabel ? 'title="your last size here" ' : ''}data-l="${l}" data-to="${to}">${l}</button>`).join('');
   const on = el.querySelector('.on');
   if (on) el.scrollTop = 0;
 }

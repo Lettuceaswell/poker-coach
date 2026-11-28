@@ -8,7 +8,7 @@ import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url
 import { startServer, launch, newPage, sleep } from './score/v2/lib.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
-const root = path.resolve(arg('--root', path.join(here, '..'))), shots = arg('--shots', path.join(here, '../shots/w-pt-hud')), N = +arg('--n', 12), only = arg('--only', ''), jsonOut = arg('--json', '');
+const root = path.resolve(arg('--root', path.join(here, '..'))), shots = arg('--shots', path.join(here, '../shots/w-pt-hud')), N = +arg('--n', 20), only = arg('--only', ''), jsonOut = arg('--json', '');
 fs.mkdirSync(shots, { recursive: true });
 const srv = await startServer(root), browser = await launch();
 const res = { t6: {}, t8: {}, t9: [] }; let fails = 0;
@@ -19,11 +19,12 @@ const SNAP = () => ({ actions: document.getElementById('actions').outerHTML, qui
 const phone = { width: 430, height: 932 };
 
 async function decisions(mode) {
+  const need = mode === 'after' ? (r) => r.filter(x => x.landed).length >= N : (r) => r.length >= N;
   const p = await newPage(browser, srv.origin, { seed: 777, viewport: phone, settings: { speed: 'fast', coach: mode, orbitReview: false, calibration: false, seats: 3 }, timeout: 6000,
     });
   await p.click('#modeCash');
   const rows = []; const t0 = Date.now();
-  while (rows.length < N && Date.now() - t0 < 240000) {
+  while (!need(rows) && Date.now() - t0 < 420000) {
     const st = await p.evaluate(() => ({ turn: !!document.querySelector('#actions [data-a="call"],#actions [data-a="check"]'), over: !!document.querySelector('#actions [data-a="next"]'), board: document.querySelectorAll('#board .card:not(.back)').length, l: 0 }));
     if (st.over) { await p.click('#actions [data-a="next"]').catch(() => {}); await sleep(200); continue; }
     if (!st.turn) { await sleep(120); continue; }
@@ -32,7 +33,7 @@ async function decisions(mode) {
     let landed = false; const w0 = Date.now();
     while (Date.now() - w0 < 9000) { const l = await p.evaluate(() => !!window.__poker.coach()?.solved); if (l) { landed = true; break; } await sleep(100); }
     const s1 = await p.evaluate(SNAP);
-    const lab = await p.evaluate(() => ({ last: document.querySelectorAll('#quick button.last[title="your last size here"]').length, txt: document.getElementById('status').textContent }));
+    const lab = await p.evaluate(() => ({ chips: document.querySelectorAll('#quick button').length, last: document.querySelectorAll('#quick button.lastsz[title="your last size here"]').length, txt: document.getElementById('status').textContent }));
     const diff = ['actions', 'quick', 'hud', 'status'].filter(k => s0[k] !== s1[k]);
     const solvingText = /solving|Solved|passes/i.test(s1.status + s1.hud);
     rows.push({ landed, diff, label: lab, solvingText, to0: (s0.actions.match(/data-to="(\d+)"/) || [])[1], to1: (s1.actions.match(/data-to="(\d+)"/) || [])[1] });
@@ -49,10 +50,10 @@ if (!only || only === '6') {
     res.t6[mode] = { decisions: rows.length, landed: landed.length, diffs: diffs.length, rows };
     console.log(` coach ${mode}: decisions ${rows.length}, solve landed during decision in ${landed.length}, with a table change ${diffs.length}`);
     if (mode !== 'always') {
-      if (mode === 'after') check(rows.length >= N && landed.length >= N / 2, `after: ${rows.length} decisions, ${landed.length} with the live solve landing during the decision (need ${N} decisions, >= ${N / 2} landed)`);
+      if (mode === 'after') check(landed.length >= N, `after: ${rows.length} decisions, ${landed.length} with the live solve landing during the decision (need >= ${N} landed)`);
       else check(rows.length >= N && landed.length === 0, `off: ${rows.length} decisions; the app runs no solve at all with the coach off (readSpot returns null), landed ${landed.length}, so nothing can tick`);
       check(diffs.length === 0, `${mode}: 0 diffs of #actions + size chips + HUD before/after landing (got ${diffs.length}: ${JSON.stringify(diffs.slice(0, 3).map(r => r.diff))})`);
-      check(rows.every(r => r.label.last >= 1) && rows.every(r => !r.solvingText), `${mode}: default chip labelled "your last size here" and no solving text`);
+      check(rows.filter(r => r.label.chips > 0).every(r => r.label.last >= 1) && rows.every(r => !r.solvingText), `${mode}: default chip labelled "your last size here" and no solving text`);
     } else {
       check(landed.length > 0 && landed.some(r => r.diff.length), `always: the snap/solve shows on landing (${diffs.length}/${landed.length} decisions changed)`);
     }
