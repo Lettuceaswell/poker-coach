@@ -560,7 +560,7 @@ small { font-size: 13px !important; }
 /* Analysis (w-pt-analysis): one button, one panel with tabs. No green here. */
 .an-btn { position: fixed; z-index: 20; top: max(env(safe-area-inset-top), 10px); left: 50px; height: 44px; min-width: 44px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 999px; font-size: 14px; font-weight: 600; color: #e8e8ea; background: #000; }
 .menu-analysis { height: 52px; font-size: 17px; }
-.an-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; position: sticky; top: 0; background: rgba(8, 8, 10, .96); z-index: 2; }
+.an-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 10px; }
 .an-tabs button { flex: none; height: 44px; padding: 0 14px; border-radius: 999px; font-size: 14px; color: var(--dim); border: 1.5px solid var(--line); }
 .an-tabs button.on { background: #f2f2f2; color: #000; font-weight: 600; border-color: #f2f2f2; }
 .an-seg { margin: 4px 0 8px; }
