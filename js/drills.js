@@ -168,6 +168,8 @@ export async function openDrills(ctx) {
       const typeKey = 'preflop ' + sc.key;
       const prior = H.typeAccuracy(typeKey), lvl0 = levelBefore(H, typeKey);
       H.recordDrill(gc === 'g', { n, label: sc.label, cls, box: item ? item.box : 0, review: !!item, type: typeKey });
+      // a spot missed again on its return waits 4-6 items instead of 2-3, so a struggling run is not all repeats (still within 8)
+      if (gc !== 'g' && item) { const q = H.history.drills.queue, e = q[q.length - 1]; if (e && e.label === sc.label && e.cls === cls) { e.due = H.history.drills.n + 4 + Math.floor(Math.random() * 3); H.save(); } }
       const topK = p.indexOf(Math.max(...p));
       body.querySelectorAll('.drill-acts button').forEach((x, k) => { x.disabled = true; if (k === i) x.classList.add('chosen'); });
       // BB price: indifferent (mixed) actions cost ~0; an action the solver avoids costs about its

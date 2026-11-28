@@ -39,14 +39,14 @@ export function leakForPost(plan, s) {
 }
 
 // ---------- skill estimate ----------
-// prior = lifetime accuracy (weight capped at 20 answers so it informs but cannot freeze the estimate);
-// evidence = last 12 answers; per-spot-type recent answers pull the estimate (weight 6 prior).
+// prior = lifetime accuracy (weight capped at 12 answers so it informs but cannot freeze the estimate);
+// evidence = last 10 answers; per-spot-type recent answers pull the estimate (weight 6 prior).
 export function skillEstimate(H, type) {
-  const d = H.history.drills, rec = (d.recent || []).slice(-12);
+  const d = H.history.drills, rec = (d.recent || []).slice(-10);
   const life = d.n ? d.good / d.n : null;
   let acc, w;
   if (life == null && !rec.length) return { skill: null, n: 0, recent: rec };
-  const W = Math.min(d.n - rec.length > 0 ? d.n - rec.length : 0, 20);
+  const W = Math.min(d.n - rec.length > 0 ? d.n - rec.length : 0, 12);
   if (rec.length) { const r = sum(rec); acc = ((W * (life ?? 0.5)) + r) / (W + rec.length); w = W + rec.length; }
   else { acc = life; w = W; }
   const t = ((d.types || {})[type] || []).slice(-8);
@@ -56,7 +56,7 @@ export function skillEstimate(H, type) {
 // target difficulty (1 - solver top frequency): 0 = clear hands, ~0.45 = hands where the solver mixes
 export function targetDifficulty(skill) {
   if (skill == null) return 0.15; // no history: mostly clear spots with a few close calls
-  return 0.45 * Math.max(0, Math.min(1, (skill - 0.55) / 0.38));
+  return 0.5 * Math.max(0, Math.min(1, (skill - 0.55) / 0.35));
 }
 // weight of an item with difficulty dif for this target (kernel; every item keeps a small chance)
 export const diffWeight = (dif, target) => 0.03 + Math.exp(-((dif - target) ** 2) / (2 * 0.13 * 0.13));

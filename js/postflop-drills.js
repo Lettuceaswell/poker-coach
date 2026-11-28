@@ -71,7 +71,7 @@ async function show() {
     const i = +b.dataset.i, f = s.mix[i], cost = evBest - s.ev[i];
     const [word, gc] = i === best || f >= 0.5 ? ['Best', 'g'] : f >= 0.15 ? ['Good', 'y'] : ['Mistake', 'r'];
     const ok = gc !== 'r';
-    if (!ok) st.q.push({ id: s.id, box: 0, due: G() + 3 + Math.floor(Math.random() * 2) });
+    if (!ok) st.q.push({ id: s.id, box: 0, due: G() + (review ? 5 : 3) + Math.floor(Math.random() * (review ? 3 : 2)) }); // missed again on return: wait 4-6 items, not 2-3
     else if (review && box + 1 < GAPS.length) { const g = GAPS[box + 1]; st.q.push({ id: s.id, box: box + 1, due: G() + 1 + g[0] + Math.floor(Math.random() * (g[1] - g[0] + 1)) }); }
     const cur = loadQ(); cur.q = st.q; saveQ(cur);
     const typeKey = 'postflop ' + s.street, prior = H.typeAccuracy(typeKey), lvl0 = levelBefore(H, typeKey);
