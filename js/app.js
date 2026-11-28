@@ -356,10 +356,17 @@ function placeTable() {
     el.style.left = Math.round(best.r.left - sbx) + 'px'; el.style.top = Math.round(best.r.top - sby) + 'px';
     placed.push(best.r);
   };
+  // nothing moved since the last placement (same rects, sizes and already-placed spots): keep it, no re-search
+  const sig = [Math.round(vw), Math.round(sr.top), Math.round(board.top), ...fixed.map(f => Math.round(f.left) + ',' + Math.round(f.top) + ',' + Math.round(f.right) + ',' + Math.round(f.bottom)),
+    ...info.map(q => [q.s.querySelector('.opp-backs'), q.s.querySelector('.bet-chip')].map(e => e ? e.offsetWidth + 'x' + e.offsetHeight + '@' + e.style.left + ',' + e.style.top : '-').join('|'))].join(';');
+  if (sig === placeSig) return;
   // backs first (always present), then chips; both avoid every label, the board and each other
   info.forEach(q => put(q.s.querySelector('.opp-backs'), q, 0));
   info.forEach(q => put(q.s.querySelector('.bet-chip'), q, 1));
+  placeSig = [Math.round(vw), Math.round(sr.top), Math.round(board.top), ...fixed.map(f => Math.round(f.left) + ',' + Math.round(f.top) + ',' + Math.round(f.right) + ',' + Math.round(f.bottom)),
+    ...info.map(q => [q.s.querySelector('.opp-backs'), q.s.querySelector('.bet-chip')].map(e => e ? e.offsetWidth + 'x' + e.offsetHeight + '@' + e.style.left + ',' + e.style.top : '-').join('|'))].join(';');
 }
+let placeSig = '';
 addEventListener('resize', () => { try { placeTable(); } catch {} });
 if (window.ResizeObserver) new ResizeObserver(() => { try { placeTable(); } catch {} }).observe($('seats'));
 
