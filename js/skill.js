@@ -39,23 +39,39 @@ export function leakForPost(plan, s) {
 }
 
 // ---------- skill estimate ----------
-// prior = lifetime accuracy (weight capped at 12 answers so it informs but cannot freeze the estimate);
+// prior = lifetime accuracy (weight capped at 6 answers so it informs but cannot freeze the estimate);
 // evidence = last 10 answers; per-spot-type recent answers pull the estimate (weight 6 prior).
 export function skillEstimate(H, type) {
   const d = H.history.drills, rec = (d.recent || []).slice(-10);
   const life = d.n ? d.good / d.n : null;
   let acc, w;
   if (life == null && !rec.length) return { skill: null, n: 0, recent: rec };
-  const W = Math.min(d.n - rec.length > 0 ? d.n - rec.length : 0, 12);
+  const W = Math.min(d.n - rec.length > 0 ? d.n - rec.length : 0, 6);
   if (rec.length) { const r = sum(rec); acc = ((W * (life ?? 0.5)) + r) / (W + rec.length); w = W + rec.length; }
   else { acc = life; w = W; }
   const t = ((d.types || {})[type] || []).slice(-8);
   if (type && t.length) acc = (6 * acc + sum(t)) / (6 + t.length);
+  // shrink toward an even-odds prior until there are enough graded drills (one or two answers say almost
+  // nothing; 8 pseudo-answers at 50 percent, so 10 answers move halfway and 60 answers barely)
+  const k = PRIOR_N / (PRIOR_N + d.n);
+  acc = 0.5 * k + acc * (1 - k);
+  // two misses in the last 3: the estimate drops at once (ease off after a bad run)
+  if (isEasing(H)) acc = Math.min(acc, 0.55);
+  if (isFresh(H)) acc = Math.min(acc, 0.55); // fresh profile: low band
   return { skill: acc, n: w, recent: rec };
 }
+const PRIOR_N = 8;
+// two or more misses in the last 3 answers
+// (or 3 or more misses in the last 10: the ease-off lasts until a bad run has rolled out of the window)
+export function isEasing(H) {
+  const all = H.history.drills.recent || [], r = all.slice(-3);
+  return (r.length >= 2 && r.filter(x => !x).length >= 2) || all.slice(-10).filter(x => !x).length >= 3;
+}
+// fewer than ~10 graded drills: held to the low band whatever the first answers were
+export const isFresh = (H) => (H.history.drills.n || 0) < 10;
 // target difficulty (1 - solver top frequency): 0 = clear hands, ~0.45 = hands where the solver mixes
 export function targetDifficulty(skill) {
-  if (skill == null) return 0.15; // no history: mostly clear spots with a few close calls
+  if (skill == null) return 0.05; // no history: clear spots
   return 0.5 * Math.max(0, Math.min(1, (skill - 0.55) / 0.35));
 }
 // weight of an item with difficulty dif for this target (kernel; every item keeps a small chance)
@@ -69,11 +85,11 @@ export function pickWeighted(items, wf) {
 // plain-words line about the difficulty being served
 export function difficultyLine(H, type) {
   const e = skillEstimate(H, type), d = H.history.drills;
-  if (e.skill == null) return 'New here: starting with clear spots; closer calls come as your answers get steadier.';
+  if (e.skill == null || isFresh(H)) return `New here (${d.n || 0} answered so far): starting with clear spots; closer calls come once you have about 10 answers on record.`;
   const s = pct(e.skill), m = e.recent.length;
   const misses = e.recent.slice(-3).filter(x => !x).length;
   const basis = m ? `${s} percent (your ${d.n} drills blended with your last ${m})` : `${s} percent (from your ${d.n} drills)`;
-  if (misses >= 2) return `Two misses in your last 3: easing off to clearer spots until they come back. You're at ${basis}.`;
+  if (isEasing(H)) return `${misses >= 2 ? 'Two misses in your last 3' : 'Several misses in your last 10'}: easing off to clearer spots until they come back. You're at ${basis}.`;
   if (e.skill >= 0.85) return `You're at ${basis}: serving closer spots where the solver mixes, aiming for about 85 percent right.`;
   if (e.skill >= 0.65) return `You're at ${basis}: serving a mix of clear and close spots.`;
   return `You're at ${basis}: serving clearer spots until about 85 percent of them are right.`;
@@ -95,3 +111,10 @@ export function progressLine(H, type, label, prevL) {
   return `<p class="progress-line">${label}: mastery level ${m.L} of 4, ${m.hits} of your last ${m.n} right.${up}${next} All spots: ${d.good} right of ${d.n}.</p>`;
 }
 export const levelBefore = (H, type) => masteryOf((H.history.drills.types || {})[type] || []).L;
+
+// While easing off, a due review that was a close spot waits (at most 3 items past its due mark, so a miss
+// still returns within 8 items) and clearer items go first; review difficulty counts toward the mean.
+export function holdReview(H, x, dif) {
+  if (!isEasing(H) || dif == null || dif <= 0.2) return false;
+  return (H.history.drills.n - x.due) < 3;
+}

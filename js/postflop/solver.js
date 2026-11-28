@@ -688,7 +688,7 @@ function evalAct(ctx, node, p, reach, out, depth, mode) {
   if (node.player === p) {
     const n = ctx.n[p];
     const Vs = ctx.poolV[depth];
-    if (mode === AVG) averageStrategy(node.sum, A, n, S, stride, TOT);
+    if (mode === AVG || node.lock) averageStrategy(node.sum, A, n, S, stride, TOT);
     for (let a = 0; a < A; a++) {
       Vs[a].fill(0, 0, n);
       traverse(ctx, kids[a], p, reach, Vs[a], depth + 1, mode);

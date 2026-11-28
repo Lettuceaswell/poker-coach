@@ -21,5 +21,12 @@ check(j(run([L('turn', 0.7)])) === j(R.turn), 'deterministic: same inputs, ident
 check(j(run([])) === j(R.none), 'clearing the locks restores the free solve exactly');
 const ip = lockReport(mk(), [{ player: 1, street: 'turn', bet: 0.4 }], 150);
 check(bet(ip.turn.ipAfterCheck) === 40, `IP can be fixed too (bets ${bet(ip.turn.ipAfterCheck)} percent after a check, asked 40)`);
+{ // exploitability with a lock: finite, repeatable, falls with iterations (locked node's owner best-responds elsewhere only)
+  const { createSolver } = await import('../js/postflop/solver.js');
+  const ex = (n) => { const sv = createSolver({ ...mk(), locks: [L('turn', 0.7)] }); sv.step(n); return sv.exploitability(); };
+  const e1 = ex(60), e2 = ex(60), e3 = ex(240);
+  check(Number.isFinite(e1) && e1 === e2, `exploitability with a lock is finite and repeatable (${e1.toFixed(3)} percent of pot)`);
+  check(e3 < e1, `exploitability with a lock falls with iterations (${e1.toFixed(3)} -> ${e3.toFixed(3)} percent of pot at 60 -> 240)`);
+}
 console.log(fail ? `\n${fail} check(s) FAILED` : '\nall checks passed');
 process.exit(fail ? 1 : 0);
