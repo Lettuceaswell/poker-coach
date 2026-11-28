@@ -1238,8 +1238,7 @@ async function openOrbitReview(hands) {
       <p class="small dim">${d.facingText || ''}</p></div>`;
     // one question at a time: the equity question appears once the price question is answered
     const firstOpen = qs.findIndex(q => !sp.answers[q.kind]);
-    const qHTML = qs.map((q, k) => ({ q, k }))// the next question waits for a tap on "Next question" (results wait for a tap)
-    .filter(({ k }) => firstOpen < 0 || k < firstOpen || (k === firstOpen && !sp.pending)).map(({ q, k }) => {
+    const qHTML = qs.map((q, k) => ({ q, k })).filter(({ k }) => firstOpen < 0 || k <= firstOpen).map(({ q, k }) => {
       const a = sp.answers[q.kind];
       const lo = a ? a.lo : 20, hi = a ? a.hi : 45;
       // an answered question is no longer an open prompt: it carries no data-judgment, only its result and explanation
@@ -1251,7 +1250,7 @@ async function openOrbitReview(hands) {
     }).join('');
     return `<h4>Calibration · 90% ranges</h4><p class="small dim calib-line">${calibLine()}</p>${spotHTML}${qHTML}<div class="verdict-box">${verdictHTML(sp)}</div>
       <button class="btn wide spot-replay" data-hand="${sp.h.no}">Replay this hand</button>
-      ${sp.pending ? '<button class="btn wide next-q">Next question</button>' : ''}${spots.length > 1 ? `<button class="btn wide next-spot">Next spot · ${(cur + 1) % spots.length + 1} of ${spots.length}</button>` : ''}`;
+      ${spots.length > 1 ? `<button class="btn wide next-spot">Next spot · ${(cur + 1) % spots.length + 1} of ${spots.length}</button>` : ''}`;
   }
   const html = `${d0 ? `<section class="cal-sec">${calInner()}</section>` : ''}
     <section><h4>Orbit ${orbit}, strongest hand first</h4><div class="hrows">${handRows(ranked)}</div></section>`;
@@ -1277,14 +1276,11 @@ async function openOrbitReview(hands) {
         H.save();
         const t = el.querySelector('.dual-truth'); t.style.left = truth + '%'; t.classList.add('on');
         // the answered card is rebuilt without data-judgment (retired, not an open prompt) and the next question, if any, appears
-        sp.pending = qs.some(x => !sp.answers[x.kind]);
         view.querySelector('.cal-sec').innerHTML = calInner(); wire();
       });
     });
-    const nq = view.querySelector('.next-q');
-    if (nq) nq.addEventListener('click', () => { sp.pending = false; view.querySelector('.cal-sec').innerHTML = calInner(); wire(); });
     const nx = view.querySelector('.next-spot');
-    if (nx) nx.addEventListener('click', () => { spots[cur].pending = false; cur = (cur + 1) % spots.length; view.querySelector('.cal-sec').innerHTML = calInner(); wire(); });
+    if (nx) nx.addEventListener('click', () => { cur = (cur + 1) % spots.length; view.querySelector('.cal-sec').innerHTML = calInner(); wire(); });
   }
   if (d0) wire();
   return done;
